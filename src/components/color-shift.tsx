@@ -296,18 +296,21 @@ export function ColorShift() {
       data-theme={theme}
       style={{ backgroundColor: '#000' }}
     >
-      {/* Split: color left, photo right (desktop) / color top, photo bottom (mobile) */}
-      <div className="flex-1 min-h-0 flex flex-col md:flex-row">
-        {/* Color panel */}
-        <Specimen
-          ref={specimenRef} bgHex={bgHex} fgHex={fgHex}
-          text={specimenText} onTextChange={setSpecimenText}
-          inputRef={specimenInputRef}
-        />
+      {/* Split: color top + photo bottom (mobile) / color left + photo right (desktop) */}
+      {/* Both panels use fixed 50% heights on mobile, fixed 50% widths on desktop */}
+      <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
+        {/* Color panel — fixed half */}
+        <div className="h-1/2 md:h-full md:w-1/2 shrink-0 overflow-hidden">
+          <Specimen
+            ref={specimenRef} bgHex={bgHex} fgHex={fgHex}
+            text={specimenText} onTextChange={setSpecimenText}
+            inputRef={specimenInputRef}
+          />
+        </div>
 
-        {/* Photo panel */}
+        {/* Photo panel — fixed half */}
         {photoBuffer.length > 0 && (
-          <div className="h-[40vh] md:h-auto md:flex-1 min-h-0 shrink-0">
+          <div className="h-1/2 md:h-full md:w-1/2 shrink-0 overflow-hidden">
             <PhotoPanel
               buffer={photoBuffer}
               currentIndex={photoIndex}

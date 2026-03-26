@@ -15,7 +15,7 @@ export const Specimen = forwardRef<HTMLDivElement, SpecimenProps>(
     return (
       <div
         ref={ref}
-        className="flex-1 min-h-0 flex items-center justify-center relative select-none"
+        className="h-full w-full flex items-center justify-center relative select-none overflow-hidden"
         style={{ backgroundColor: bgHex }}
       >
         <input
