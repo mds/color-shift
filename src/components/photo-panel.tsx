@@ -67,14 +67,37 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange }: PhotoPanelPr
     return () => { emblaApi.off('settle', onSettle); };
   }, [emblaApi, currentIndex, onIndexChange]);
 
-  // Reinit when buffer grows
+  // Reinit when buffer length changes + animate to new index
   const bufferLen = buffer.length;
+  const prevBufLen = useRef(bufferLen);
+  const prevIdx = useRef(currentIndex);
+
   useEffect(() => {
     if (!emblaApi) return;
-    isReinitialing.current = true;
-    emblaApi.reInit();
-    emblaApi.scrollTo(currentIndex, true);
-    requestAnimationFrame(() => { isReinitialing.current = false; });
+
+    const bufChanged = bufferLen !== prevBufLen.current;
+    const idxChanged = currentIndex !== prevIdx.current;
+    prevBufLen.current = bufferLen;
+    prevIdx.current = currentIndex;
+
+    if (bufChanged) {
+      // Buffer grew (inject or refill) — reinit, snap to previous position, then animate
+      isReinitialing.current = true;
+      emblaApi.reInit();
+
+      if (idxChanged) {
+        // Snap to where we WERE, then animate to the new index
+        const oldIdx = Math.max(0, currentIndex - 1);
+        emblaApi.scrollTo(oldIdx, true); // instant to old
+        requestAnimationFrame(() => {
+          isReinitialing.current = false;
+          emblaApi.scrollTo(currentIndex); // animate to new
+        });
+      } else {
+        emblaApi.scrollTo(currentIndex, true);
+        requestAnimationFrame(() => { isReinitialing.current = false; });
+      }
+    }
   }, [emblaApi, bufferLen, currentIndex]);
 
   // Arrow keys: update parent immediately AND scroll Embla

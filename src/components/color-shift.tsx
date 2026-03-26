@@ -91,9 +91,6 @@ export function ColorShift() {
     if (fgHex !== prevFg.current && specimenRef.current) {
       const input = specimenRef.current.querySelector('input');
       if (input) gsap.to(input, { color: fgHex, duration: dur, ease });
-      // Also animate the score badge text
-      const badge = specimenRef.current.querySelector('[data-score-label]');
-      if (badge) gsap.to(badge, { color: fgHex, duration: dur, ease });
     }
     prevBg.current = bgHex;
     prevFg.current = fgHex;
@@ -305,7 +302,7 @@ export function ColorShift() {
         <Specimen
           ref={specimenRef} bgHex={bgHex} fgHex={fgHex}
           text={specimenText} onTextChange={setSpecimenText}
-          inputRef={specimenInputRef} contrast={contrast}
+          inputRef={specimenInputRef}
         />
 
         {/* Photo panel */}
