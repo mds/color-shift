@@ -83,6 +83,7 @@ function createGridCells(
     for (let c = 0; c < gridSize; c++) {
       const cell = document.createElement('div');
       cell.style.position = 'absolute';
+      cell.style.overflow = 'hidden';
       cell.style.left = `${c * cellW}px`;
       cell.style.top = `${r * cellH}px`;
       cell.style.width = `${cellW}px`;
@@ -125,9 +126,13 @@ function runGridTransition(
     }
 
     case 'diagonal-wipe':
-      gsap.set(cells, { scale: 0, opacity: 0 });
-      tl.to(cells, { scale: 1, opacity: 1, duration: 0.3,
-        stagger: { each: 0.025, grid: [gridSize, gridSize], from: 'start' }, ease: 'power2.out' });
+      // Horizontal column wipe — each column reveals left to right
+      gsap.set(cells, { clipPath: 'inset(0 100% 0 0)' });
+      for (let c = 0; c < gridSize; c++) {
+        const colCells: HTMLDivElement[] = [];
+        for (let r = 0; r < gridSize; r++) colCells.push(cells[r * gridSize + c]);
+        tl.to(colCells, { clipPath: 'inset(0 0% 0 0)', duration: 0.25, ease: 'power2.out' }, c * 0.04);
+      }
       break;
 
     case 'mosaic-flip':
