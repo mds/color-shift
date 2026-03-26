@@ -217,21 +217,30 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange }: PhotoPanelPr
     runIt();
   }, [buffer, currentIndex, loadImage, drawPhoto, runTransition]);
 
-  // Resize canvas to match container
-  useEffect(() => {
+  // Sync canvas pixel dimensions to container size (CSS handles layout)
+  const syncCanvasSize = useCallback(() => {
     const container = containerRef.current;
     const canvas = canvasRef.current;
     if (!container || !canvas) return;
+    const rect = container.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const pw = Math.round(rect.width * dpr);
+    const ph = Math.round(rect.height * dpr);
+    if (canvas.width !== pw || canvas.height !== ph) {
+      canvas.width = pw;
+      canvas.height = ph;
+    }
+  }, []);
 
-    const observer = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect;
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
+  // Resize observer — only updates internal pixel dimensions, not CSS
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
-      // Redraw current photo at new size
+    syncCanvasSize();
+
+    const observer = new ResizeObserver(() => {
+      syncCanvasSize();
       const photo = buffer[currentIndex];
       if (photo) {
         const img = imageCache.current.get(photo.id);
@@ -240,7 +249,7 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange }: PhotoPanelPr
     });
     observer.observe(container);
     return () => observer.disconnect();
-  }, [buffer, currentIndex, drawPhoto]);
+  }, [buffer, currentIndex, drawPhoto, syncCanvasSize]);
 
   // Arrow key navigation
   useEffect(() => {
@@ -279,10 +288,10 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange }: PhotoPanelPr
         />
       )}
 
-      {/* Canvas for transitions */}
+      {/* Canvas for transitions — fills container via CSS, pixel dims via JS */}
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 z-10"
+        className="absolute inset-0 z-10 w-full h-full"
       />
 
       {/* Attribution */}
