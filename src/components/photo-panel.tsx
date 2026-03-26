@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { gsap } from '@/lib/gsap-config';
 import type { PhotoData } from './control-strip';
 
@@ -196,6 +196,7 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange, transition }: 
   const gridLayerRef = useRef<HTMLDivElement>(null);
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
   const prevIndexRef = useRef(currentIndex);
+  const [displayedIndex, setDisplayedIndex] = useState(currentIndex);
   const rafRef = useRef<number>(0);
   const isAnimating = useRef(false);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
@@ -203,6 +204,7 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange, transition }: 
   const PIXEL_SIZE = 24;
   const GRID_SIZE = 8;
   const photo = buffer[currentIndex];
+  const displayedPhoto = buffer[displayedIndex];
 
   const loadImage = useCallback((p: PhotoData): Promise<HTMLImageElement> => {
     const cached = imageCache.current.get(p.id);
@@ -288,12 +290,13 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange, transition }: 
         ctx.clearRect(0, 0, w, h);
         const crop = coverRect(imgB, w, h);
         ctx.drawImage(imgB, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, w, h);
+        setDisplayedIndex(currentIndex);
         isAnimating.current = false;
       }
     };
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(animate);
-  }, [sampleColors, PIXEL_SIZE]);
+  }, [sampleColors, PIXEL_SIZE, currentIndex]);
 
   const clearGridLayer = useCallback(() => {
     const layer = gridLayerRef.current;
@@ -325,9 +328,10 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange, transition }: 
     timelineRef.current = runGridTransition(transType, cells, GRID_SIZE, () => {
       drawPhoto(imgB);
       clearGridLayer();
+      setDisplayedIndex(currentIndex);
       isAnimating.current = false;
     });
-  }, [GRID_SIZE, drawPhoto, clearGridLayer, renderCoveredImage]);
+  }, [GRID_SIZE, drawPhoto, clearGridLayer, renderCoveredImage, currentIndex]);
 
   useEffect(() => {
     const p = buffer[currentIndex];
@@ -337,7 +341,7 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange, transition }: 
     prevIndexRef.current = currentIndex;
     syncCanvasSize();
     if (prevIdx === currentIndex) {
-      loadImage(p).then(img => { if (img.complete) drawPhoto(img); });
+      loadImage(p).then(img => { if (img.complete) { drawPhoto(img); setDisplayedIndex(currentIndex); } });
       return;
     }
     const runIt = async () => {
@@ -385,9 +389,9 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange, transition }: 
   }, []);
 
   return (
-    <div ref={containerRef} className="relative h-full overflow-hidden" style={{ backgroundColor: photo?.color ?? '#000' }}>
-      {photo && (
-        <img src={photo.tinyUrl} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
+    <div ref={containerRef} className="relative h-full overflow-hidden" style={{ backgroundColor: displayedPhoto?.color ?? '#000' }}>
+      {displayedPhoto && (
+        <img src={displayedPhoto.tinyUrl} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
       )}
       <canvas ref={canvasRef} className="absolute inset-0 z-10 w-full h-full" />
       <div ref={gridLayerRef} className="absolute inset-0 z-20" />
