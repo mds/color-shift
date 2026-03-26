@@ -133,6 +133,56 @@ export function ColorShift() {
     });
   }, []);
 
+  // Extract colors from a single photo's image — returns the pair or null
+  const extractColorsFromPhoto = useCallback(async (photo: PhotoData): Promise<PhotoColors | null> => {
+    return new Promise((resolve) => {
+      const img = new window.Image();
+      img.crossOrigin = 'anonymous';
+      img.src = photo.url;
+      img.onload = async () => {
+        try {
+          const { Vibrant } = await import('node-vibrant/browser');
+          const palette = await Vibrant.from(img).getPalette();
+          const mapped: VibrantPalette = {
+            Vibrant: palette.Vibrant ? { hex: palette.Vibrant.hex, population: palette.Vibrant.population } : null,
+            DarkVibrant: palette.DarkVibrant ? { hex: palette.DarkVibrant.hex, population: palette.DarkVibrant.population } : null,
+            LightVibrant: palette.LightVibrant ? { hex: palette.LightVibrant.hex, population: palette.LightVibrant.population } : null,
+            Muted: palette.Muted ? { hex: palette.Muted.hex, population: palette.Muted.population } : null,
+            DarkMuted: palette.DarkMuted ? { hex: palette.DarkMuted.hex, population: palette.DarkMuted.population } : null,
+            LightMuted: palette.LightMuted ? { hex: palette.LightMuted.hex, population: palette.LightMuted.population } : null,
+          };
+          resolve(extractContrastPair(mapped, contrastAlgorithm));
+        } catch { resolve(null); }
+      };
+      img.onerror = () => resolve(null);
+    });
+  }, [contrastAlgorithm]);
+
+  // Extract colors for an entire batch and write to colorMap
+  const extractBatchColors = useCallback(async (photos: PhotoData[]) => {
+    const toExtract = photos.filter(p => !colorMap.has(p.id));
+    if (toExtract.length === 0) return;
+
+    // Extract in parallel, up to 5 at a time
+    const batchSize = 5;
+    for (let i = 0; i < toExtract.length; i += batchSize) {
+      const batch = toExtract.slice(i, i + batchSize);
+      const results = await Promise.all(batch.map(p => extractColorsFromPhoto(p).then(r => ({ id: p.id, colors: r }))));
+
+      setColorMap(prev => {
+        let changed = false;
+        const next = new Map(prev);
+        for (const { id, colors } of results) {
+          if (colors && !next.has(id)) {
+            next.set(id, colors);
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }
+  }, [colorMap, extractColorsFromPhoto]);
+
   const dedupePhotos = useCallback((existing: PhotoData[], incoming: PhotoData[]): PhotoData[] => {
     const ids = new Set(existing.map(p => p.id));
     return incoming.filter(p => !ids.has(p.id));
@@ -148,10 +198,12 @@ export function ColorShift() {
         preloadThumbs(unique);
         preloadImages(unique.slice(0, 3));
         setPhotoBuffer(prev => [...prev, ...dedupePhotos(prev, unique)]);
+        // Extract colors in background — ready before user arrives
+        extractBatchColors(unique);
       }
       isFetchingMore.current = false;
     }
-  }, [fetchPhotos, preloadImages, preloadThumbs, dedupePhotos]);
+  }, [fetchPhotos, preloadImages, preloadThumbs, dedupePhotos, extractBatchColors]);
 
   // ── Load fresh batch ──
 
@@ -166,7 +218,9 @@ export function ColorShift() {
     setManualColors(null);
     if (showFullScreen) setIsPhotoFullScreen(true);
     setIsPhotoLoading(false);
-  }, [fetchPhotos, preloadImages, preloadThumbs]);
+    // Extract colors for all photos in background
+    extractBatchColors(photos);
+  }, [fetchPhotos, preloadImages, preloadThumbs, extractBatchColors]);
 
   // Auto-load on mount
   useEffect(() => {
@@ -183,53 +237,6 @@ export function ColorShift() {
     maybeRefill(newIndex, photoBuffer);
     preloadImages(photoBuffer.slice(newIndex + 1, newIndex + 3));
   }, [photoBuffer, maybeRefill, preloadImages]);
-
-  // ── Vibrant extraction — runs in parent when photoIndex changes ──
-  // Only extracts once per photo. Results cached in colorMap.
-
-  useEffect(() => {
-    if (!photoData) return;
-    if (colorMap.has(photoData.id)) return; // already extracted
-
-    // Load the full-res image and extract
-    const img = new window.Image();
-    img.crossOrigin = 'anonymous';
-    img.src = photoData.url;
-
-    let cancelled = false;
-
-    img.onload = async () => {
-      if (cancelled) return;
-      try {
-        const { Vibrant } = await import('node-vibrant/browser');
-        const palette = await Vibrant.from(img).getPalette();
-        if (cancelled) return;
-
-        const mapped: VibrantPalette = {
-          Vibrant: palette.Vibrant ? { hex: palette.Vibrant.hex, population: palette.Vibrant.population } : null,
-          DarkVibrant: palette.DarkVibrant ? { hex: palette.DarkVibrant.hex, population: palette.DarkVibrant.population } : null,
-          LightVibrant: palette.LightVibrant ? { hex: palette.LightVibrant.hex, population: palette.LightVibrant.population } : null,
-          Muted: palette.Muted ? { hex: palette.Muted.hex, population: palette.Muted.population } : null,
-          DarkMuted: palette.DarkMuted ? { hex: palette.DarkMuted.hex, population: palette.DarkMuted.population } : null,
-          LightMuted: palette.LightMuted ? { hex: palette.LightMuted.hex, population: palette.LightMuted.population } : null,
-        };
-
-        const pair = extractContrastPair(mapped, contrastAlgorithm);
-        if (pair && !cancelled) {
-          setColorMap(prev => {
-            if (prev.has(photoData.id)) return prev; // race guard
-            const next = new Map(prev);
-            next.set(photoData.id, pair);
-            return next;
-          });
-        }
-      } catch (err) {
-        console.error('Color extraction failed:', err);
-      }
-    };
-
-    return () => { cancelled = true; };
-  }, [photoData, colorMap, contrastAlgorithm]);
 
   // ── Open/close overlay — does NOT change colors ──
 
