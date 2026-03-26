@@ -14,11 +14,13 @@ import {
   formatColorValue,
   generateExportMarkdown,
   parseAnyColor,
+  extractContrastPair,
   type ColorFormat,
   type SliderMode,
   type ContrastAlgorithm,
   type HSB,
   type OklchValues,
+  type VibrantPalette,
 } from '@/lib/color-engine';
 import { Specimen } from './specimen';
 import { ControlStrip, type PhotoData } from './control-strip';
@@ -83,7 +85,6 @@ export function ColorShift() {
   const fg = hexToColorData(fgHex);
   const contrast = getContrastResult(bgHex, fgHex, contrastAlgorithm);
   const activeThreshold = nearestThreshold(contrast.score, contrastAlgorithm);
-  const extractedIds = useMemo(() => new Set(colorMap.keys()), [colorMap]);
 
   // ── GSAP ──
   useGSAP(() => {}, { scope: rootRef });
@@ -183,19 +184,52 @@ export function ColorShift() {
     preloadImages(photoBuffer.slice(newIndex + 1, newIndex + 3));
   }, [photoBuffer, maybeRefill, preloadImages]);
 
-  // ── Vibrant extraction callback — caches colors for the current photo ──
+  // ── Vibrant extraction — runs in parent when photoIndex changes ──
+  // Only extracts once per photo. Results cached in colorMap.
 
-  const handlePhotoColorsExtracted = useCallback((newBg: string, newFg: string) => {
+  useEffect(() => {
     if (!photoData) return;
-    setColorMap(prev => {
-      if (prev.get(photoData.id)?.bg === newBg && prev.get(photoData.id)?.fg === newFg) return prev;
-      const next = new Map(prev);
-      next.set(photoData.id, { bg: newBg, fg: newFg });
-      return next;
-    });
-    // Clear manual override so derived colors pick up the extraction
-    setManualColors(null);
-  }, [photoData]);
+    if (colorMap.has(photoData.id)) return; // already extracted
+
+    // Load the full-res image and extract
+    const img = new window.Image();
+    img.crossOrigin = 'anonymous';
+    img.src = photoData.url;
+
+    let cancelled = false;
+
+    img.onload = async () => {
+      if (cancelled) return;
+      try {
+        const { Vibrant } = await import('node-vibrant/browser');
+        const palette = await Vibrant.from(img).getPalette();
+        if (cancelled) return;
+
+        const mapped: VibrantPalette = {
+          Vibrant: palette.Vibrant ? { hex: palette.Vibrant.hex, population: palette.Vibrant.population } : null,
+          DarkVibrant: palette.DarkVibrant ? { hex: palette.DarkVibrant.hex, population: palette.DarkVibrant.population } : null,
+          LightVibrant: palette.LightVibrant ? { hex: palette.LightVibrant.hex, population: palette.LightVibrant.population } : null,
+          Muted: palette.Muted ? { hex: palette.Muted.hex, population: palette.Muted.population } : null,
+          DarkMuted: palette.DarkMuted ? { hex: palette.DarkMuted.hex, population: palette.DarkMuted.population } : null,
+          LightMuted: palette.LightMuted ? { hex: palette.LightMuted.hex, population: palette.LightMuted.population } : null,
+        };
+
+        const pair = extractContrastPair(mapped, contrastAlgorithm);
+        if (pair && !cancelled) {
+          setColorMap(prev => {
+            if (prev.has(photoData.id)) return prev; // race guard
+            const next = new Map(prev);
+            next.set(photoData.id, pair);
+            return next;
+          });
+        }
+      } catch (err) {
+        console.error('Color extraction failed:', err);
+      }
+    };
+
+    return () => { cancelled = true; };
+  }, [photoData, colorMap, contrastAlgorithm]);
 
   // ── Open/close overlay — does NOT change colors ──
 
@@ -317,9 +351,9 @@ export function ColorShift() {
 
       {isPhotoFullScreen && photoBuffer.length > 0 && (
         <PhotoOverlay
-          buffer={photoBuffer} currentIndex={photoIndex} contrastAlgorithm={contrastAlgorithm}
-          onColorsExtracted={handlePhotoColorsExtracted} onIndexChange={handlePhotoIndexChange}
-          onCollapse={handlePhotoCollapse} thumbRef={photoThumbRef} extractedIds={extractedIds}
+          buffer={photoBuffer} currentIndex={photoIndex}
+          onIndexChange={handlePhotoIndexChange}
+          onCollapse={handlePhotoCollapse} thumbRef={photoThumbRef}
         />
       )}
 
