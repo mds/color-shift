@@ -73,7 +73,8 @@ export function PhotoOverlay({
   const overlayRef = useRef<HTMLDivElement>(null);
   const extractedForIndex = useRef(-1);
 
-  const photo = buffer[currentIndex];
+  const [visibleIndex, setVisibleIndex] = useState(currentIndex);
+  const photo = buffer[visibleIndex];
 
   // Embla
   const [emblaRef, emblaApi] = useEmblaCarousel({
@@ -82,15 +83,20 @@ export function PhotoOverlay({
     duration: 20,
   });
 
-  // Sync Embla → parent
+  // Update credits immediately on slide change, sync parent on settle
   useEffect(() => {
     if (!emblaApi) return;
+    const onSelect = () => setVisibleIndex(emblaApi.selectedScrollSnap());
     const onSettle = () => {
       const idx = emblaApi.selectedScrollSnap();
       if (idx !== currentIndex) onIndexChange(idx);
     };
+    emblaApi.on('select', onSelect);
     emblaApi.on('settle', onSettle);
-    return () => { emblaApi.off('settle', onSettle); };
+    return () => {
+      emblaApi.off('select', onSelect);
+      emblaApi.off('settle', onSettle);
+    };
   }, [emblaApi, currentIndex, onIndexChange]);
 
   // Reinit when buffer grows
@@ -233,8 +239,8 @@ export function PhotoOverlay({
     return () => window.removeEventListener('keydown', handler);
   }, [emblaApi, handleCollapse]);
 
-  const canPrev = currentIndex > 0;
-  const canNext = currentIndex < buffer.length - 1;
+  const canPrev = visibleIndex > 0;
+  const canNext = visibleIndex < buffer.length - 1;
 
   return (
     <div
@@ -325,7 +331,7 @@ export function PhotoOverlay({
       {/* Counter */}
       {!isAnimatingIn && (
         <div className="absolute top-4 right-4 text-white/30 text-[10px] font-mono">
-          {currentIndex + 1}/{buffer.length} &middot; ← → slide &middot; Esc close
+          {visibleIndex + 1}/{buffer.length} &middot; ← → slide &middot; Esc close
         </div>
       )}
     </div>
