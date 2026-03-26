@@ -35,12 +35,13 @@ export function ColorShift() {
   const [sliderMode, setSliderMode] = useState<SliderMode>('OKLCH');
   const [contrastAlgorithm, setContrastAlgorithm] = useState<ContrastAlgorithm>('WCAG2');
 
-  // Photo state
-  const [photoData, setPhotoData] = useState<PhotoData | null>(null);
+  // Photo state — buffer-based carousel
+  const [photoBuffer, setPhotoBuffer] = useState<PhotoData[]>([]);
+  const [photoIndex, setPhotoIndex] = useState(0);
   const [isPhotoFullScreen, setIsPhotoFullScreen] = useState(false);
   const [isPhotoLoading, setIsPhotoLoading] = useState(false);
-  const [photoHistory, setPhotoHistory] = useState<PhotoData[]>([]);
-  const [photoIndex, setPhotoIndex] = useState(-1);
+  const isFetchingMore = useRef(false);
+  const photoData = photoBuffer.length > 0 ? photoBuffer[photoIndex] ?? null : null;
 
   // Drag ref (not state — avoids re-renders)
   const isDraggingRef = useRef(false);
@@ -140,43 +141,68 @@ export function ColorShift() {
   }, [bgHex, fgHex, contrastAlgorithm]);
 
   // Photo handlers
+  // Fetch a batch of photos and append to buffer
+  const fetchPhotos = useCallback(async (count: number): Promise<PhotoData[]> => {
+    const res = await fetch(`/api/photos?count=${count}`);
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      console.warn('Photo API:', data.error ?? 'Add UNSPLASH_ACCESS_KEY to .env.local');
+      return [];
+    }
+    return data as PhotoData[];
+  }, []);
+
+  // Preload images into browser cache
+  const preloadImages = useCallback((photos: PhotoData[]) => {
+    photos.forEach(p => {
+      const img = new Image();
+      img.src = p.url;
+    });
+  }, []);
+
+  // Prefetch more photos when nearing the end of the buffer
+  const maybeRefill = useCallback(async (currentIdx: number, buffer: PhotoData[]) => {
+    if (isFetchingMore.current) return;
+    const remaining = buffer.length - currentIdx - 1;
+    if (remaining <= 1) {
+      isFetchingMore.current = true;
+      const more = await fetchPhotos(3);
+      if (more.length > 0) {
+        preloadImages(more);
+        setPhotoBuffer(prev => [...prev, ...more]);
+      }
+      isFetchingMore.current = false;
+    }
+  }, [fetchPhotos, preloadImages]);
+
+  // Initial photo load — fetch 3, show first, preload rest
   const handleLoadPhoto = useCallback(async () => {
     setIsPhotoLoading(true);
-    try {
-      const res = await fetch('/api/photos');
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        console.warn('Photo API:', data.error ?? 'Unknown error. Add UNSPLASH_ACCESS_KEY to .env.local');
-        return;
-      }
-      setPhotoData(data);
-      setPhotoHistory(prev => [...prev, data]);
-      setPhotoIndex(prev => prev + 1);
-      setIsPhotoFullScreen(true);
-    } catch (err) {
-      console.warn('Photo load failed:', err);
-    } finally {
+    const photos = await fetchPhotos(3);
+    if (photos.length === 0) {
       setIsPhotoLoading(false);
+      return;
     }
-  }, []);
+    preloadImages(photos);
+    setPhotoBuffer(photos);
+    setPhotoIndex(0);
+    setIsPhotoFullScreen(true);
+    setIsPhotoLoading(false);
+  }, [fetchPhotos, preloadImages]);
 
   const handlePhotoPrev = useCallback(() => {
     if (photoIndex > 0) {
-      const prev = photoHistory[photoIndex - 1];
-      setPhotoData(prev);
       setPhotoIndex(i => i - 1);
     }
-  }, [photoIndex, photoHistory]);
+  }, [photoIndex]);
 
   const handlePhotoNext = useCallback(() => {
-    if (photoIndex < photoHistory.length - 1) {
-      const next = photoHistory[photoIndex + 1];
-      setPhotoData(next);
-      setPhotoIndex(i => i + 1);
-    } else {
-      handleLoadPhoto();
+    const nextIdx = photoIndex + 1;
+    if (nextIdx < photoBuffer.length) {
+      setPhotoIndex(nextIdx);
+      maybeRefill(nextIdx, photoBuffer);
     }
-  }, [photoIndex, photoHistory, handleLoadPhoto]);
+  }, [photoIndex, photoBuffer, maybeRefill]);
 
   const handlePhotoColorsExtracted = useCallback((newBg: string, newFg: string) => {
     setBgHex(newBg);
@@ -260,17 +286,17 @@ export function ColorShift() {
         inputRef={specimenInputRef}
       />
 
-      {isPhotoFullScreen && photoData && (
+      {isPhotoFullScreen && photoBuffer.length > 0 && (
         <PhotoOverlay
-          photoData={photoData}
+          buffer={photoBuffer}
+          currentIndex={photoIndex}
           contrastAlgorithm={contrastAlgorithm}
           onColorsExtracted={handlePhotoColorsExtracted}
-          onNewPhoto={handleLoadPhoto}
-          onPrevPhoto={handlePhotoPrev}
-          onNextPhoto={handlePhotoNext}
+          onPrev={handlePhotoPrev}
+          onNext={handlePhotoNext}
           onCollapse={handlePhotoCollapse}
           hasPrev={photoIndex > 0}
-          isLoading={isPhotoLoading}
+          hasNext={photoIndex < photoBuffer.length - 1}
         />
       )}
 

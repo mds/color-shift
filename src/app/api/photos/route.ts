@@ -1,32 +1,48 @@
 import { NextResponse } from 'next/server';
 
-export async function GET() {
+function mapPhoto(photo: Record<string, unknown>) {
+  const urls = photo.urls as Record<string, string>;
+  const user = photo.user as Record<string, unknown>;
+  const userLinks = user.links as Record<string, string>;
+  const links = photo.links as Record<string, string>;
+
+  return {
+    id: photo.id as string,
+    url: urls.regular,
+    thumbUrl: urls.thumb,
+    color: photo.color as string,
+    photographer: user.name as string,
+    photographerUrl: userLinks.html,
+    photoUrl: links.html,
+    alt: (photo.alt_description as string) ?? 'Unsplash photo',
+  };
+}
+
+export async function GET(request: Request) {
   const key = process.env.UNSPLASH_ACCESS_KEY;
   if (!key) {
     return NextResponse.json({ error: 'UNSPLASH_ACCESS_KEY not configured' }, { status: 500 });
   }
 
+  const { searchParams } = new URL(request.url);
+  const count = Math.min(parseInt(searchParams.get('count') ?? '1'), 10);
+
   try {
-    const res = await fetch('https://api.unsplash.com/photos/random?orientation=landscape', {
-      headers: { Authorization: `Client-ID ${key}` },
-    });
+    const res = await fetch(
+      `https://api.unsplash.com/photos/random?orientation=landscape&count=${count}`,
+      { headers: { Authorization: `Client-ID ${key}` } },
+    );
 
     if (!res.ok) {
       return NextResponse.json({ error: 'Unsplash API error' }, { status: res.status });
     }
 
-    const photo = await res.json();
+    const data = await res.json();
 
-    return NextResponse.json({
-      url: photo.urls.regular,
-      thumbUrl: photo.urls.thumb,
-      color: photo.color,
-      photographer: photo.user.name,
-      photographerUrl: photo.user.links.html,
-      photoUrl: photo.links.html,
-      alt: photo.alt_description ?? 'Unsplash photo',
-    });
+    // count=1 still returns an array when using count param
+    const photos = Array.isArray(data) ? data : [data];
+    return NextResponse.json(photos.map(mapPhoto));
   } catch {
-    return NextResponse.json({ error: 'Failed to fetch photo' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch photos' }, { status: 500 });
   }
 }
