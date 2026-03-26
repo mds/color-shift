@@ -103,12 +103,6 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange }: PhotoPanelPr
     // Generate scramble order — which cells get replaced first
     const order = shuffleArray(Array.from({ length: total }, (_, i) => i));
 
-    // Random offset for each pixel during scramble
-    const offsets = Array.from({ length: total }, () => ({
-      dx: (Math.random() - 0.5) * 4,
-      dy: (Math.random() - 0.5) * 4,
-    }));
-
     let startTs: number | null = null;
     isAnimating.current = true;
 
@@ -136,13 +130,9 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange }: PhotoPanelPr
         const g = src[pi + 1];
         const b = src[pi + 2];
 
-        // Position: scramble peaks at t=0.5, settles at t=1
-        const scramble = Math.sin(t * Math.PI); // 0 → 1 → 0
-        const ox = offsets[i].dx * scramble * PIXEL_SIZE;
-        const oy = offsets[i].dy * scramble * PIXEL_SIZE;
-
-        const x = col * PIXEL_SIZE + ox;
-        const y = row * PIXEL_SIZE + oy;
+        // Fixed grid position — no movement
+        const x = col * PIXEL_SIZE;
+        const y = row * PIXEL_SIZE;
 
         ctx.fillStyle = `rgb(${r},${g},${b})`;
         ctx.fillRect(x, y, PIXEL_SIZE, PIXEL_SIZE);
