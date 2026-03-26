@@ -1,9 +1,12 @@
 import { parse, formatHex, converter } from 'culori';
+import { APCAcontrast, sRGBtoY } from 'apca-w3';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
 export type ColorFormat = 'HEX' | 'RGB' | 'HSL' | 'HSB' | 'OKLCH';
 export type SliderMode = 'HSB' | 'OKLCH';
+export type ContrastAlgorithm = 'WCAG2' | 'APCA';
+export type Grade = 'AAA' | 'AA' | 'AA Large' | 'Fail';
 
 export interface HSB {
   h: number; // 0–360
@@ -125,7 +128,7 @@ export function maxChroma(l: number, h: number): number {
   return Number(best.toFixed(3));
 }
 
-// ── WCAG Contrast ──────────────────────────────────────────────────────
+// ── Contrast: WCAG 2 ────────────────────────────────────────────────────
 
 function linearize(c: number): number {
   return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
@@ -138,7 +141,7 @@ function relativeLuminance(hex: string): number {
   return 0.2126 * linearize(c?.r ?? 0) + 0.7152 * linearize(c?.g ?? 0) + 0.0722 * linearize(c?.b ?? 0);
 }
 
-export function contrastRatio(hex1: string, hex2: string): number {
+export function wcagContrastRatio(hex1: string, hex2: string): number {
   const l1 = relativeLuminance(hex1);
   const l2 = relativeLuminance(hex2);
   const lighter = Math.max(l1, l2);
@@ -146,19 +149,82 @@ export function contrastRatio(hex1: string, hex2: string): number {
   return Number(((lighter + 0.05) / (darker + 0.05)).toFixed(2));
 }
 
-export function wcagGrade(ratio: number): 'AAA' | 'AA' | 'AA+' | 'Fail' {
+function wcagGrade(ratio: number): Grade {
   if (ratio >= 7.0) return 'AAA';
   if (ratio >= 4.5) return 'AA';
-  if (ratio >= 3.0) return 'AA+';
+  if (ratio >= 3.0) return 'AA Large';
   return 'Fail';
 }
 
-export function gradeDescription(grade: string): string {
+// ── Contrast: APCA ──────────────────────────────────────────────────────
+
+function hexToRgbArray(hex: string): [number, number, number] {
+  const parsed = parse(hex);
+  if (!parsed) return [0, 0, 0];
+  const c = toRgb(parsed);
+  return [
+    Math.round((c?.r ?? 0) * 255),
+    Math.round((c?.g ?? 0) * 255),
+    Math.round((c?.b ?? 0) * 255),
+  ];
+}
+
+export function apcaLc(fgHex: string, bgHex: string): number {
+  const fgY = sRGBtoY(hexToRgbArray(fgHex));
+  const bgY = sRGBtoY(hexToRgbArray(bgHex));
+  const lc = Number(APCAcontrast(fgY, bgY));
+  return Number(Math.abs(lc).toFixed(1));
+}
+
+function apcaGrade(lc: number): Grade {
+  if (lc >= 75) return 'AAA';
+  if (lc >= 60) return 'AA';
+  if (lc >= 45) return 'AA Large';
+  return 'Fail';
+}
+
+// ── Unified Contrast API ────────────────────────────────────────────────
+
+export interface ContrastResult {
+  score: number;       // WCAG ratio (e.g. 4.5) or APCA Lc (e.g. 72.3)
+  scoreLabel: string;  // "4.50:1" or "Lc 72.3"
+  grade: Grade;
+  gradeDesc: string;
+}
+
+export function contrastRatio(bgHex: string, fgHex: string, algorithm: ContrastAlgorithm = 'WCAG2'): number {
+  if (algorithm === 'APCA') return apcaLc(fgHex, bgHex);
+  return wcagContrastRatio(bgHex, fgHex);
+}
+
+export function getContrastResult(bgHex: string, fgHex: string, algorithm: ContrastAlgorithm): ContrastResult {
+  if (algorithm === 'APCA') {
+    const lc = apcaLc(fgHex, bgHex);
+    const grade = apcaGrade(lc);
+    return {
+      score: lc,
+      scoreLabel: `Lc ${lc}`,
+      grade,
+      gradeDesc: gradeDescription(grade),
+    };
+  }
+
+  const ratio = wcagContrastRatio(bgHex, fgHex);
+  const grade = wcagGrade(ratio);
+  return {
+    score: ratio,
+    scoreLabel: `${ratio}:1`,
+    grade,
+    gradeDesc: gradeDescription(grade),
+  };
+}
+
+export function gradeDescription(grade: Grade | string): string {
   switch (grade) {
     case 'AAA': return 'Valid for all text sizes';
     case 'AA': return 'Valid for normal text and above';
-    case 'AA+': return 'Valid for large text only';
-    case 'Fail': return 'Does not meet WCAG requirements';
+    case 'AA Large': return 'Valid for large text only';
+    case 'Fail': return 'Does not meet contrast requirements';
     default: return '';
   }
 }
@@ -207,28 +273,37 @@ export function generateRandomPair(): { bg: string; fg: string } {
 
 // ── Threshold Bumping ──────────────────────────────────────────────────
 
-const THRESHOLDS: number[] = [1.5, 3.0, 4.5, 7.0];
+const WCAG_THRESHOLDS: number[] = [1.5, 3.0, 4.5, 7.0];
+const APCA_THRESHOLDS: number[] = [30, 45, 60, 75];
 
-export function nearestThreshold(ratio: number): number {
-  let nearest = THRESHOLDS[0];
-  let minDiff = Math.abs(ratio - nearest);
-  for (const t of THRESHOLDS) {
-    const diff = Math.abs(ratio - t);
+export function getThresholds(algorithm: ContrastAlgorithm): number[] {
+  return algorithm === 'APCA' ? APCA_THRESHOLDS : WCAG_THRESHOLDS;
+}
+
+export function nearestThreshold(score: number, algorithm: ContrastAlgorithm = 'WCAG2'): number {
+  const thresholds = getThresholds(algorithm);
+  let nearest = thresholds[0];
+  let minDiff = Math.abs(score - nearest);
+  for (const t of thresholds) {
+    const diff = Math.abs(score - t);
     if (diff < minDiff) { minDiff = diff; nearest = t; }
   }
   return nearest;
 }
 
-export function nextThresholdUp(ratio: number): number | null {
-  return THRESHOLDS.find(t => t > ratio + 0.05) ?? null;
+export function nextThresholdUp(score: number, algorithm: ContrastAlgorithm = 'WCAG2'): number | null {
+  const margin = algorithm === 'APCA' ? 1 : 0.05;
+  return getThresholds(algorithm).find(t => t > score + margin) ?? null;
 }
 
-export function nextThresholdDown(ratio: number): number | null {
-  return [...THRESHOLDS].reverse().find(t => t < ratio - 0.05) ?? null;
+export function nextThresholdDown(score: number, algorithm: ContrastAlgorithm = 'WCAG2'): number | null {
+  const margin = algorithm === 'APCA' ? 1 : 0.05;
+  return [...getThresholds(algorithm)].reverse().find(t => t < score - margin) ?? null;
 }
 
-export function bumpToThreshold(bgHex: string, fgHex: string, targetRatio: number): string {
-  const bgLum = relativeLuminance(bgHex);
+export function bumpToThreshold(
+  bgHex: string, fgHex: string, targetScore: number, algorithm: ContrastAlgorithm = 'WCAG2'
+): string {
   const fgParsed = parse(fgHex);
   if (!fgParsed) return fgHex;
 
@@ -236,7 +311,10 @@ export function bumpToThreshold(bgHex: string, fgHex: string, targetRatio: numbe
   if (!fgOklch) return fgHex;
 
   const fgLum = relativeLuminance(fgHex);
+  const bgLum = relativeLuminance(bgHex);
   const fgIsLighter = fgLum >= bgLum;
+
+  const tolerance = algorithm === 'APCA' ? 1.0 : 0.05;
 
   let lo = 0;
   let hi = 1;
@@ -256,15 +334,15 @@ export function bumpToThreshold(bgHex: string, fgHex: string, targetRatio: numbe
       continue;
     }
 
-    const ratio = contrastRatio(bgHex, testHex);
-    const diff = Math.abs(ratio - targetRatio);
+    const score = contrastRatio(bgHex, testHex, algorithm);
+    const diff = Math.abs(score - targetScore);
     if (diff < bestDiff) { bestDiff = diff; bestHex = testHex; }
-    if (diff < 0.05) break;
+    if (diff < tolerance) break;
 
     if (fgIsLighter) {
-      if (ratio < targetRatio) lo = mid; else hi = mid;
+      if (score < targetScore) lo = mid; else hi = mid;
     } else {
-      if (ratio < targetRatio) hi = mid; else lo = mid;
+      if (score < targetScore) hi = mid; else lo = mid;
     }
   }
   return bestHex;
@@ -286,7 +364,7 @@ export function formatColorValue(data: ColorData, format: ColorFormat): string {
 // ── Export ──────────────────────────────────────────────────────────────
 
 export function generateExportMarkdown(
-  bg: ColorData, fg: ColorData, ratio: number, grade: string
+  bg: ColorData, fg: ColorData, contrast: ContrastResult, algorithm: ContrastAlgorithm
 ): string {
   return `# Color Shift Export
 
@@ -304,10 +382,10 @@ export function generateExportMarkdown(
 - HSB: hsb(${fg.hsb.h}, ${fg.hsb.s}%, ${fg.hsb.b}%)
 - OKLCH: oklch(${fg.oklch.l}% ${fg.oklch.c} ${fg.oklch.h})
 
-## Contrast
-- Ratio: ${ratio}:1
-- Grade: ${grade}
-- ${gradeDescription(grade)}
+## Contrast (${algorithm})
+- Score: ${contrast.scoreLabel}
+- Grade: ${contrast.grade}
+- ${contrast.gradeDesc}
 `;
 }
 

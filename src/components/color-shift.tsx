@@ -5,9 +5,7 @@ import {
   hexToColorData,
   hsbToHex,
   oklchToHex,
-  contrastRatio,
-  wcagGrade,
-  gradeDescription,
+  getContrastResult,
   generateRandomPair,
   bumpToThreshold,
   nearestThreshold,
@@ -18,6 +16,7 @@ import {
   parseAnyColor,
   type ColorFormat,
   type SliderMode,
+  type ContrastAlgorithm,
   type HSB,
   type OklchValues,
 } from '@/lib/color-engine';
@@ -31,14 +30,13 @@ export function ColorShift() {
   const [specimenText, setSpecimenText] = useState('Aa');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [sliderMode, setSliderMode] = useState<SliderMode>('HSB');
+  const [contrastAlgorithm, setContrastAlgorithm] = useState<ContrastAlgorithm>('WCAG2');
   const [isDragging, setIsDragging] = useState(false);
 
   const bg = hexToColorData(bgHex);
   const fg = hexToColorData(fgHex);
-  const ratio = contrastRatio(bgHex, fgHex);
-  const grade = wcagGrade(ratio);
-  const gradeDesc = gradeDescription(grade);
-  const activeThreshold = nearestThreshold(ratio);
+  const contrast = getContrastResult(bgHex, fgHex, contrastAlgorithm);
+  const activeThreshold = nearestThreshold(contrast.score, contrastAlgorithm);
 
   const generate = useCallback(() => {
     const pair = generateRandomPair();
@@ -73,19 +71,23 @@ export function ColorShift() {
     setSliderMode(m => (m === 'HSB' ? 'OKLCH' : 'HSB'));
   }, []);
 
+  const toggleContrastAlgorithm = useCallback(() => {
+    setContrastAlgorithm(a => (a === 'WCAG2' ? 'APCA' : 'WCAG2'));
+  }, []);
+
   const bumpUp = useCallback(() => {
-    const target = nextThresholdUp(ratio);
-    if (target) setFgHex(bumpToThreshold(bgHex, fgHex, target));
-  }, [bgHex, fgHex, ratio]);
+    const target = nextThresholdUp(contrast.score, contrastAlgorithm);
+    if (target) setFgHex(bumpToThreshold(bgHex, fgHex, target, contrastAlgorithm));
+  }, [bgHex, fgHex, contrast.score, contrastAlgorithm]);
 
   const bumpDown = useCallback(() => {
-    const target = nextThresholdDown(ratio);
-    if (target) setFgHex(bumpToThreshold(bgHex, fgHex, target));
-  }, [bgHex, fgHex, ratio]);
+    const target = nextThresholdDown(contrast.score, contrastAlgorithm);
+    if (target) setFgHex(bumpToThreshold(bgHex, fgHex, target, contrastAlgorithm));
+  }, [bgHex, fgHex, contrast.score, contrastAlgorithm]);
 
   const bumpTo = useCallback((target: number) => {
-    setFgHex(bumpToThreshold(bgHex, fgHex, target));
-  }, [bgHex, fgHex]);
+    setFgHex(bumpToThreshold(bgHex, fgHex, target, contrastAlgorithm));
+  }, [bgHex, fgHex, contrastAlgorithm]);
 
   const cycleFormat = useCallback(() => {
     const formats: ColorFormat[] = ['HEX', 'RGB', 'HSL', 'HSB', 'OKLCH'];
@@ -107,12 +109,12 @@ export function ColorShift() {
   }, []);
 
   const copyExport = useCallback(async () => {
-    const md = generateExportMarkdown(bg, fg, ratio, grade);
+    const md = generateExportMarkdown(bg, fg, contrast, contrastAlgorithm);
     await navigator.clipboard.writeText(md);
-  }, [bg, fg, ratio, grade]);
+  }, [bg, fg, contrast, contrastAlgorithm]);
 
   const downloadExport = useCallback(() => {
-    const md = generateExportMarkdown(bg, fg, ratio, grade);
+    const md = generateExportMarkdown(bg, fg, contrast, contrastAlgorithm);
     const blob = new Blob([md], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -120,14 +122,13 @@ export function ColorShift() {
     a.download = `color-shift-${bg.hex.slice(1)}-${fg.hex.slice(1)}.md`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [bg, fg, ratio, grade]);
+  }, [bg, fg, contrast, contrastAlgorithm]);
 
   // Keyboard shortcuts
   const specimenRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Don't intercept when typing in inputs (except specimen)
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' && target !== specimenRef.current) return;
 
@@ -175,12 +176,11 @@ export function ColorShift() {
         bgHex={bgHex}
         fgHex={fgHex}
         colorFormat={colorFormat}
-        ratio={ratio}
-        grade={grade}
-        gradeDesc={gradeDesc}
+        contrast={contrast}
         activeThreshold={activeThreshold}
         theme={theme}
         sliderMode={sliderMode}
+        contrastAlgorithm={contrastAlgorithm}
         onBgInput={handleBgInput}
         onFgInput={handleFgInput}
         onSwap={swap}
@@ -197,6 +197,7 @@ export function ColorShift() {
         onDownload={downloadExport}
         onToggleTheme={toggleTheme}
         onToggleSliderMode={toggleSliderMode}
+        onToggleContrastAlgorithm={toggleContrastAlgorithm}
         onDragStart={() => setIsDragging(true)}
         onDragEnd={() => setIsDragging(false)}
         formatColorValue={formatColorValue}

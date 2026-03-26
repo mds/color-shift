@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import type { ColorData, ColorFormat, SliderMode, HSB, OklchValues } from '@/lib/color-engine';
-import { maxChroma } from '@/lib/color-engine';
+import type { ColorData, ColorFormat, SliderMode, ContrastAlgorithm, HSB, OklchValues, ContrastResult } from '@/lib/color-engine';
+import { maxChroma, getThresholds } from '@/lib/color-engine';
 
 // ── Icons (inline SVG) ─────────────────────────────────────────────────
 
@@ -86,12 +86,11 @@ interface ControlsProps {
   bgHex: string;
   fgHex: string;
   colorFormat: ColorFormat;
-  ratio: number;
-  grade: 'AAA' | 'AA' | 'AA+' | 'Fail';
-  gradeDesc: string;
+  contrast: ContrastResult;
   activeThreshold: number;
   theme: 'dark' | 'light';
   sliderMode: SliderMode;
+  contrastAlgorithm: ContrastAlgorithm;
   onBgInput: (value: string) => void;
   onFgInput: (value: string) => void;
   onSwap: () => void;
@@ -108,6 +107,7 @@ interface ControlsProps {
   onDownload: () => void;
   onToggleTheme: () => void;
   onToggleSliderMode: () => void;
+  onToggleContrastAlgorithm: () => void;
   onDragStart: () => void;
   onDragEnd: () => void;
   formatColorValue: (data: ColorData, format: ColorFormat) => string;
@@ -118,12 +118,14 @@ interface ControlsProps {
 export function Controls(props: ControlsProps) {
   const {
     bg, fg, bgHex, fgHex, colorFormat,
-    ratio, grade, gradeDesc, activeThreshold, theme, sliderMode,
+    contrast, activeThreshold, theme, sliderMode, contrastAlgorithm,
     onBgInput, onFgInput, onSwap, onBumpUp, onBumpDown, onBumpTo,
     onUpdateBgHsb, onUpdateFgHsb, onUpdateBgOklch, onUpdateFgOklch,
     onCycleFormat, onGenerate, onCopy, onDownload, onToggleTheme,
-    onToggleSliderMode, onDragStart, onDragEnd, formatColorValue,
+    onToggleSliderMode, onToggleContrastAlgorithm, onDragStart, onDragEnd, formatColorValue,
   } = props;
+
+  const { grade, scoreLabel, gradeDesc } = contrast;
 
   const isDark = theme === 'dark';
   const chrome = isDark ? 'bg-[#0D0D0D]' : 'bg-[#F0EDE8]';
@@ -131,7 +133,7 @@ export function Controls(props: ControlsProps) {
   const textValue = isDark ? 'text-white/70' : 'text-black/70';
   const hoverBg = isDark ? 'hover:bg-white/[0.06]' : 'hover:bg-black/[0.04]';
 
-  const thresholds = [1.5, 3.0, 4.5, 7.0];
+  const thresholds = getThresholds(contrastAlgorithm);
 
   const gradeColor = grade === 'Fail'
     ? (isDark ? 'text-red-400' : 'text-red-600')
@@ -203,13 +205,20 @@ export function Controls(props: ControlsProps) {
           {/* Spacer */}
           <div className="flex-1 min-w-4" />
 
-          {/* Right: grade + ratio + thresholds + bump */}
+          {/* Right: algorithm toggle + grade + score + thresholds + bump */}
           <div className="flex items-baseline gap-2 shrink-0">
-            <span className={`${valueCls} font-semibold ${gradeColor} w-[3.5ch] text-right`}>
+            <button
+              onClick={onToggleContrastAlgorithm}
+              className={`${valueCls} ${textMuted} ${hoverBg} rounded px-1.5 py-0.5 transition-colors`}
+              title="Toggle contrast algorithm"
+            >
+              {contrastAlgorithm === 'WCAG2' ? 'WCAG 2' : 'APCA'}
+            </button>
+            <span className={`${valueCls} font-semibold ${gradeColor}`}>
               {grade}
             </span>
-            <span className={`${valueCls} ${textValue} w-[7ch] text-right`}>
-              {ratio}:1
+            <span className={`${valueCls} ${textValue}`}>
+              {scoreLabel}
             </span>
 
             {/* Threshold markers */}
@@ -223,7 +232,7 @@ export function Controls(props: ControlsProps) {
                     : `${textMuted} ${hoverBg}`
                 }`}
               >
-                {t.toFixed(1)}
+                {contrastAlgorithm === 'APCA' ? t : t.toFixed(1)}
               </button>
             ))}
 
