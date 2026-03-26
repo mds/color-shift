@@ -83,12 +83,17 @@ export function ColorShift() {
 
   useEffect(() => {
     if (isDraggingRef.current) { prevBg.current = bgHex; prevFg.current = fgHex; return; }
-    if (bgHex !== prevBg.current && rootRef.current && specimenRef.current) {
-      gsap.to(specimenRef.current, { backgroundColor: bgHex, duration: 0.5, ease: 'power2.out' });
+    const dur = 0.45; // match Embla slide duration
+    const ease = 'power2.inOut';
+    if (bgHex !== prevBg.current && specimenRef.current) {
+      gsap.to(specimenRef.current, { backgroundColor: bgHex, duration: dur, ease });
     }
     if (fgHex !== prevFg.current && specimenRef.current) {
       const input = specimenRef.current.querySelector('input');
-      if (input) gsap.to(input, { color: fgHex, duration: 0.5, ease: 'power2.out' });
+      if (input) gsap.to(input, { color: fgHex, duration: dur, ease });
+      // Also animate the score badge text
+      const badge = specimenRef.current.querySelector('[data-score-label]');
+      if (badge) gsap.to(badge, { color: fgHex, duration: dur, ease });
     }
     prevBg.current = bgHex;
     prevFg.current = fgHex;

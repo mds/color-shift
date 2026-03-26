@@ -59,6 +59,7 @@ export const Specimen = forwardRef<HTMLDivElement, SpecimenProps>(
             {contrast.grade}
           </span>
           <span
+            data-score-label
             className="font-mono text-[12px] opacity-50"
             style={{ color: fgHex }}
           >

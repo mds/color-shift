@@ -55,16 +55,18 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange }: PhotoPanelPr
     duration: 20,
   });
 
-  // Sync Embla → parent
+  // Sync Embla → parent on select (immediate, not settle)
+  // This fires the moment a slide starts, so GSAP color animation
+  // runs in parallel with Embla's slide animation.
   useEffect(() => {
     if (!emblaApi) return;
-    const onSettle = () => {
+    const onSelect = () => {
       if (isReinitialing.current) return;
       const idx = emblaApi.selectedScrollSnap();
       if (idx !== currentIndex) onIndexChange(idx);
     };
-    emblaApi.on('settle', onSettle);
-    return () => { emblaApi.off('settle', onSettle); };
+    emblaApi.on('select', onSelect);
+    return () => { emblaApi.off('select', onSelect); };
   }, [emblaApi, currentIndex, onIndexChange]);
 
   // Scroll when parent changes index (keyboard nav)
