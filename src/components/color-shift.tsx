@@ -209,7 +209,26 @@ export function ColorShift() {
     preloadImages(photoBuffer.slice(newIndex + 1, newIndex + 3));
   }, [photoBuffer, maybeRefill, preloadImages]);
 
-  const generate = useCallback(() => loadPhotos(), [loadPhotos]);
+  // Inject a random photo after the current position and advance to it
+  const injectPhoto = useCallback(async () => {
+    const photos = await fetchPhotos(1);
+    if (photos.length === 0) return;
+    const newPhoto = photos[0];
+
+    // Preload assets
+    preloadThumbs([newPhoto]);
+    preloadImages([newPhoto]);
+    extractBatchColors([newPhoto]);
+
+    // Splice into buffer after current index
+    const insertAt = photoIndex + 1;
+    setPhotoBuffer(prev => {
+      const next = [...prev];
+      next.splice(insertAt, 0, newPhoto);
+      return next;
+    });
+    setPhotoIndex(insertAt);
+  }, [fetchPhotos, preloadThumbs, preloadImages, extractBatchColors, photoIndex]);
 
   // ── Manual color manipulation ──
 
@@ -265,13 +284,13 @@ export function ColorShift() {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' && target !== specimenInputRef.current) return;
-      if (e.code === 'Space' && target !== specimenInputRef.current) { e.preventDefault(); generate(); }
+      if (e.code === 'Space' && target !== specimenInputRef.current) { e.preventDefault(); injectPhoto(); }
       if ((e.key === 's' || e.key === 'S') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) { e.preventDefault(); swap(); }
       if ((e.key === 't' || e.key === 'T') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) { e.preventDefault(); toggleTheme(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [generate, swap, toggleTheme]);
+  }, [injectPhoto, swap, toggleTheme]);
 
   return (
     <div
@@ -311,7 +330,7 @@ export function ColorShift() {
         onBumpUp={bumpUp} onBumpDown={bumpDown} onBumpTo={bumpTo}
         onUpdateBgHsb={updateBgHsb} onUpdateFgHsb={updateFgHsb}
         onUpdateBgOklch={updateBgOklch} onUpdateFgOklch={updateFgOklch}
-        onCycleFormat={cycleFormat} onGenerate={generate}
+        onCycleFormat={cycleFormat} onGenerate={injectPhoto}
         onLoadPhoto={loadPhotos} onPhotoOpen={() => {}}
         onCopy={copyExport} onDownload={() => {}}
         onToggleTheme={toggleTheme} onToggleSliderMode={toggleSliderMode}
