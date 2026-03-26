@@ -1,10 +1,65 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import useEmblaCarousel from 'embla-carousel-react';
 import { gsap } from '@/lib/gsap-config';
 import { extractContrastPair } from '@/lib/color-engine';
 import type { PhotoData } from './control-strip';
 import type { ContrastAlgorithm } from '@/lib/color-engine';
+
+// ── Progressive Image ─────────────────────────────────────────────────
+
+function ProgressiveImage({
+  thumbUrl,
+  fullUrl,
+  alt,
+  color,
+  isCurrent,
+  onFullLoaded,
+}: {
+  thumbUrl: string;
+  fullUrl: string;
+  alt: string;
+  color: string;
+  isCurrent: boolean;
+  onFullLoaded: (img: HTMLImageElement) => void;
+}) {
+  const [fullReady, setFullReady] = useState(false);
+  const fullRef = useRef<HTMLImageElement>(null);
+
+  return (
+    <div className="relative w-full h-full" style={{ backgroundColor: color }}>
+      {/* Thumb — loads instantly, shown blurred until full loads */}
+      <img
+        src={thumbUrl}
+        alt={alt}
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+          fullReady ? 'opacity-0' : 'opacity-100'
+        }`}
+        style={{ filter: 'blur(20px)', transform: 'scale(1.1)' }}
+      />
+
+      {/* Full res — fades in over the thumb */}
+      <img
+        ref={fullRef}
+        src={fullUrl}
+        alt={alt}
+        crossOrigin="anonymous"
+        onLoad={() => {
+          setFullReady(true);
+          if (isCurrent && fullRef.current) {
+            onFullLoaded(fullRef.current);
+          }
+        }}
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+          fullReady ? 'opacity-100' : 'opacity-0'
+        }`}
+      />
+    </div>
+  );
+}
+
+// ── PhotoOverlay ──────────────────────────────────────────────────────
 
 interface PhotoOverlayProps {
   buffer: PhotoData[];
@@ -25,12 +80,48 @@ export function PhotoOverlay({
   const [colorsReady, setColorsReady] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
-  const trackRef = useRef<HTMLDivElement>(null);
-  const prevIndexRef = useRef(currentIndex);
 
   const photo = buffer[currentIndex];
 
-  // Animate overlay in on mount
+  // Embla carousel
+  const [emblaRef, emblaApi] = useEmblaCarousel({
+    startIndex: currentIndex,
+    loop: false,
+    dragFree: false,
+    watchDrag: true,
+  });
+
+  // Sync Embla's selected index with parent state
+  useEffect(() => {
+    if (!emblaApi) return;
+
+    const onSelect = () => {
+      const idx = emblaApi.selectedScrollSnap();
+      if (idx < currentIndex && hasPrev) onPrev();
+      if (idx > currentIndex && hasNext) onNext();
+    };
+
+    emblaApi.on('select', onSelect);
+    return () => { emblaApi.off('select', onSelect); };
+  }, [emblaApi, currentIndex, hasPrev, hasNext, onPrev, onNext]);
+
+  // Scroll Embla when currentIndex changes from parent (keyboard nav)
+  useEffect(() => {
+    if (emblaApi && emblaApi.selectedScrollSnap() !== currentIndex) {
+      emblaApi.scrollTo(currentIndex);
+    }
+  }, [emblaApi, currentIndex]);
+
+  // Reindex Embla when buffer grows (new photos fetched)
+  useEffect(() => {
+    if (emblaApi) {
+      emblaApi.reInit();
+      // After reinit, scroll back to current position
+      emblaApi.scrollTo(currentIndex, true);
+    }
+  }, [emblaApi, buffer.length, currentIndex]);
+
+  // Animate overlay in
   useEffect(() => {
     if (overlayRef.current) {
       gsap.fromTo(overlayRef.current,
@@ -40,26 +131,14 @@ export function PhotoOverlay({
     }
   }, []);
 
-  // Slide the track when currentIndex changes
+  // Reset extraction on photo change
   useEffect(() => {
-    if (!trackRef.current) return;
-    const direction = currentIndex > prevIndexRef.current ? 1 : -1;
-    prevIndexRef.current = currentIndex;
-
-    // Position: each slide is 100vw wide, translate to show current
-    const targetX = -(currentIndex * 100);
-    gsap.fromTo(trackRef.current,
-      { xPercent: targetX + (direction * 30) },
-      { xPercent: targetX, duration: 0.35, ease: 'power3.out' }
-    );
-
-    // Reset extraction state for new photo
     setColorsReady(false);
     setExtracting(false);
   }, [currentIndex]);
 
-  // Extract colors when a slide's image loads
-  const handleImageLoad = useCallback(async (imgEl: HTMLImageElement) => {
+  // Extract colors from loaded full-res image
+  const handleFullLoaded = useCallback(async (imgEl: HTMLImageElement) => {
     if (extracting) return;
     setExtracting(true);
 
@@ -97,16 +176,16 @@ export function PhotoOverlay({
     }
   }, [onCollapse]);
 
-  // Arrow key navigation
+  // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft' && hasPrev) {
+      if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        onPrev();
+        emblaApi?.scrollPrev();
       }
-      if (e.key === 'ArrowRight' && hasNext) {
+      if (e.key === 'ArrowRight') {
         e.preventDefault();
-        onNext();
+        emblaApi?.scrollNext();
       }
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -115,44 +194,36 @@ export function PhotoOverlay({
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [hasPrev, hasNext, onPrev, onNext, handleCollapse]);
+  }, [emblaApi, handleCollapse]);
 
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 overflow-hidden"
+      className="fixed inset-0 z-50"
       style={{ backgroundColor: photo?.color ?? '#000' }}
     >
-      {/* Sliding track — all photos side by side */}
-      <div
-        ref={trackRef}
-        className="flex h-full will-change-transform"
-        style={{
-          width: `${buffer.length * 100}vw`,
-          transform: `translateX(-${currentIndex * 100}vw)`,
-        }}
-      >
-        {buffer.map((p, i) => (
-          <div
-            key={p.id}
-            className="w-screen h-full shrink-0 relative"
-            style={{ backgroundColor: p.color }}
-          >
-            <img
-              src={p.url}
-              alt={p.alt}
-              crossOrigin="anonymous"
-              onLoad={i === currentIndex ? (e) => handleImageLoad(e.currentTarget) : undefined}
-              className="w-full h-full object-cover"
-            />
-          </div>
-        ))}
+      {/* Embla carousel */}
+      <div ref={emblaRef} className="h-full overflow-hidden">
+        <div className="flex h-full">
+          {buffer.map((p, i) => (
+            <div key={p.id} className="flex-[0_0_100%] min-w-0 h-full">
+              <ProgressiveImage
+                thumbUrl={p.thumbUrl}
+                fullUrl={p.url}
+                alt={p.alt}
+                color={p.color}
+                isCurrent={i === currentIndex}
+                onFullLoaded={handleFullLoaded}
+              />
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Arrow buttons */}
       {hasPrev && (
         <button
-          onClick={onPrev}
+          onClick={() => emblaApi?.scrollPrev()}
           className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/20 backdrop-blur-sm text-white/70 hover:bg-black/40 hover:text-white transition-colors"
         >
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -162,7 +233,7 @@ export function PhotoOverlay({
       )}
       {hasNext && (
         <button
-          onClick={onNext}
+          onClick={() => emblaApi?.scrollNext()}
           className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/20 backdrop-blur-sm text-white/70 hover:bg-black/40 hover:text-white transition-colors"
         >
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -198,9 +269,9 @@ export function PhotoOverlay({
         </div>
       </div>
 
-      {/* Keyboard hint + counter */}
+      {/* Counter + keyboard hint */}
       <div className="absolute top-4 right-4 text-white/30 text-[10px] font-mono">
-        {currentIndex + 1}/{buffer.length} &middot; ← → navigate &middot; Esc close
+        {currentIndex + 1}/{buffer.length} &middot; ← → slide &middot; Esc close
       </div>
     </div>
   );
