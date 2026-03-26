@@ -77,6 +77,7 @@ export function PhotoOverlay({
   const [colorsReady, setColorsReady] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const extractedForIndex = useRef(-1);
 
   const photo = buffer[currentIndex];
 
@@ -119,15 +120,10 @@ export function PhotoOverlay({
     }
   }, []);
 
-  // Reset extraction on photo change
-  useEffect(() => {
-    setColorsReady(false);
-    setExtracting(false);
-  }, [currentIndex]);
-
   // Extract colors from full-res image
-  const handleFullLoaded = useCallback(async (imgEl: HTMLImageElement) => {
-    if (extracting) return;
+  const runExtraction = useCallback(async (imgEl: HTMLImageElement, idx: number) => {
+    if (extractedForIndex.current === idx) return;
+    extractedForIndex.current = idx;
     setExtracting(true);
 
     try {
@@ -153,7 +149,32 @@ export function PhotoOverlay({
     } finally {
       setExtracting(false);
     }
-  }, [extracting, contrastAlgorithm, onColorsExtracted]);
+  }, [contrastAlgorithm, onColorsExtracted]);
+
+  // Handle full-res image load — called from ProgressiveImage onLoad
+  const handleFullLoaded = useCallback((imgEl: HTMLImageElement) => {
+    runExtraction(imgEl, currentIndex);
+  }, [runExtraction, currentIndex]);
+
+  // Reset on photo change + re-extract if image already cached
+  useEffect(() => {
+    setColorsReady(false);
+    setExtracting(false);
+    extractedForIndex.current = -1;
+
+    // Check if the current slide's full-res is already loaded (cached)
+    const timer = setTimeout(() => {
+      const slides = overlayRef.current?.querySelectorAll('[data-slide]');
+      if (!slides) return;
+      const currentSlide = slides[currentIndex];
+      if (!currentSlide) return;
+      const fullImg = currentSlide.querySelector('img[crossorigin]') as HTMLImageElement | null;
+      if (fullImg?.complete && fullImg.naturalWidth > 0) {
+        runExtraction(fullImg, currentIndex);
+      }
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [currentIndex, runExtraction]);
 
   const handleCollapse = useCallback(() => {
     if (overlayRef.current) {
@@ -188,7 +209,7 @@ export function PhotoOverlay({
       <div ref={emblaRef} className="h-full overflow-hidden">
         <div className="flex h-full">
           {buffer.map((p, i) => (
-            <div key={p.id + '-' + i} className="flex-[0_0_100%] min-w-0 h-full">
+            <div key={p.id + '-' + i} data-slide className="flex-[0_0_100%] min-w-0 h-full">
               <ProgressiveImage
                 thumbUrl={p.thumbUrl}
                 fullUrl={p.url}
@@ -239,13 +260,11 @@ export function PhotoOverlay({
           </div>
 
           <div className="flex items-center gap-2">
-            {extracting && <span className="text-white/50 text-[11px] font-mono">Extracting...</span>}
             <button
               onClick={handleCollapse}
-              disabled={!colorsReady && !extracting}
-              className="px-3 py-1.5 rounded-lg bg-white/15 backdrop-blur-sm text-white/90 text-[12px] font-mono hover:bg-white/25 transition-colors disabled:opacity-30"
+              className="px-3 py-1.5 rounded-lg bg-white/15 backdrop-blur-sm text-white/90 text-[12px] font-mono hover:bg-white/25 transition-colors"
             >
-              Use Colors
+              {colorsReady ? 'Use Colors' : extracting ? 'Extracting...' : 'Close'}
             </button>
           </div>
         </div>
