@@ -12,7 +12,6 @@
     "@gsap/react": "^2.1.2",
     "apca-w3": "^0.1.9",
     "culori": "^4.0.2",
-    "embla-carousel-react": "^8.6.0",
     "gsap": "^3.14.2",
     "next": "16.2.1",
     "node-vibrant": "^4.0.4",
