@@ -19,6 +19,12 @@ const alphaLyrae = localFont({
   display: "swap",
 });
 
+const departureMono = localFont({
+  src: "../fonts/DepartureMono-Regular.woff2",
+  variable: "--font-departure-mono",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "Color Shift",
   description: "Two colors. Background and foreground. See the contrast. Feel the combination.",
@@ -32,7 +38,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${alphaLyrae.variable}`}
+      className={`${geistSans.variable} ${geistMono.variable} ${alphaLyrae.variable} ${departureMono.variable}`}
     >
       <body>{children}</body>
     </html>
