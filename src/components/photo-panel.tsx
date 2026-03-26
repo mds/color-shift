@@ -63,26 +63,45 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange }: PhotoPanelPr
     buffer.slice(0, Math.min(buffer.length, currentIndex + 3)).forEach(p => loadImage(p));
   }, [buffer, currentIndex, loadImage]);
 
-  // Sample a photo into a grid of RGB values
+  // Compute source crop rect for object-fit: cover behavior
+  const coverRect = useCallback((img: HTMLImageElement, destW: number, destH: number) => {
+    const imgRatio = img.naturalWidth / img.naturalHeight;
+    const destRatio = destW / destH;
+    let sx = 0, sy = 0, sw = img.naturalWidth, sh = img.naturalHeight;
+    if (imgRatio > destRatio) {
+      // Image is wider — crop sides
+      sw = img.naturalHeight * destRatio;
+      sx = (img.naturalWidth - sw) / 2;
+    } else {
+      // Image is taller — crop top/bottom
+      sh = img.naturalWidth / destRatio;
+      sy = (img.naturalHeight - sh) / 2;
+    }
+    return { sx, sy, sw, sh };
+  }, []);
+
+  // Sample a photo into a grid of RGB values (preserving aspect ratio)
   const sampleColors = useCallback((img: HTMLImageElement, gridW: number, gridH: number): Uint8ClampedArray => {
     const sample = document.createElement('canvas');
     sample.width = gridW;
     sample.height = gridH;
     const ctx = sample.getContext('2d');
     if (!ctx) return new Uint8ClampedArray(gridW * gridH * 4);
-    ctx.drawImage(img, 0, 0, gridW, gridH);
+    const { sx, sy, sw, sh } = coverRect(img, gridW, gridH);
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, gridW, gridH);
     return ctx.getImageData(0, 0, gridW, gridH).data;
-  }, []);
+  }, [coverRect]);
 
-  // Draw the current photo (no transition)
+  // Draw the current photo (no transition, aspect-correct)
   const drawPhoto = useCallback((img: HTMLImageElement) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    const { sx, sy, sw, sh } = coverRect(img, canvas.width, canvas.height);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  }, []);
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  }, [coverRect]);
 
   // Run the pixel scramble transition from photo A to photo B
   const runTransition = useCallback((imgA: HTMLImageElement, imgB: HTMLImageElement) => {
@@ -140,18 +159,19 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange }: PhotoPanelPr
 
       // At the end, overlay the full photo B for crisp resolve
       if (raw >= 0.85) {
-        const resolveAlpha = (raw - 0.85) / 0.15; // 0→1 over last 15%
+        const resolveAlpha = (raw - 0.85) / 0.15;
         ctx.globalAlpha = easeInOutCubic(resolveAlpha);
-        ctx.drawImage(imgB, 0, 0, w, h);
+        const crop = coverRect(imgB, w, h);
+        ctx.drawImage(imgB, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, w, h);
         ctx.globalAlpha = 1;
       }
 
       if (raw < 1) {
         rafRef.current = requestAnimationFrame(animate);
       } else {
-        // Final: clean photo B
         ctx.clearRect(0, 0, w, h);
-        ctx.drawImage(imgB, 0, 0, w, h);
+        const crop = coverRect(imgB, w, h);
+        ctx.drawImage(imgB, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, w, h);
         isAnimating.current = false;
       }
     };

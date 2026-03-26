@@ -29,7 +29,7 @@ export const Specimen = forwardRef<HTMLDivElement, SpecimenProps>(
           style={{
             color: fgHex,
             caretColor: fgHex,
-            fontFamily: 'var(--font-departure-mono), monospace',
+            fontFamily: 'var(--font-instrument-serif), serif',
           }}
           placeholder="Aa"
           spellCheck={false}

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 
@@ -25,6 +25,13 @@ const departureMono = localFont({
   display: "swap",
 });
 
+const instrumentSerif = Instrument_Serif({
+  weight: '400',
+  subsets: ['latin'],
+  variable: '--font-instrument-serif',
+  display: 'swap',
+});
+
 export const metadata: Metadata = {
   title: "Color Shift",
   description: "Two colors. Background and foreground. See the contrast. Feel the combination.",
@@ -38,7 +45,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${alphaLyrae.variable} ${departureMono.variable}`}
+      className={`${geistSans.variable} ${geistMono.variable} ${alphaLyrae.variable} ${departureMono.variable} ${instrumentSerif.variable}`}
     >
       <body>{children}</body>
     </html>
