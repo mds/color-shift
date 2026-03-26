@@ -420,17 +420,67 @@ export function extractContrastPair(
   palette: VibrantPalette,
   algorithm: ContrastAlgorithm = 'WCAG2'
 ): { bg: string; fg: string } | null {
-  const darkCandidates = [palette.DarkMuted, palette.DarkVibrant, palette.Muted];
-  const lightCandidates = [palette.LightVibrant, palette.LightMuted, palette.Vibrant];
+  // Collect all available swatches with their roles
+  const swatches: { hex: string; population: number; role: string }[] = [];
+  if (palette.Vibrant) swatches.push({ ...palette.Vibrant, role: 'Vibrant' });
+  if (palette.DarkVibrant) swatches.push({ ...palette.DarkVibrant, role: 'DarkVibrant' });
+  if (palette.LightVibrant) swatches.push({ ...palette.LightVibrant, role: 'LightVibrant' });
+  if (palette.Muted) swatches.push({ ...palette.Muted, role: 'Muted' });
+  if (palette.DarkMuted) swatches.push({ ...palette.DarkMuted, role: 'DarkMuted' });
+  if (palette.LightMuted) swatches.push({ ...palette.LightMuted, role: 'LightMuted' });
 
-  const bg = darkCandidates.find(s => s?.hex)?.hex;
-  const fg = lightCandidates.find(s => s?.hex)?.hex;
+  if (swatches.length < 2) return null;
 
-  if (!bg || !fg) return null;
+  // Find the pair with the highest contrast that uses vibrant colors
+  // Prefer Vibrant and DarkVibrant over muted swatches for drama
+  let bestPair: { bg: string; fg: string } | null = null;
+  let bestScore = 0;
 
-  // Ensure the pair passes at least AA
-  const safeFg = bumpToThreshold(bg, fg, algorithm === 'APCA' ? 60 : 4.5, algorithm);
-  return { bg, fg: safeFg };
+  for (const a of swatches) {
+    for (const b of swatches) {
+      if (a === b) continue;
+
+      const ratio = wcagContrastRatio(a.hex, b.hex);
+      if (ratio < 3.0) continue; // minimum usable contrast
+
+      // Score: contrast ratio + bonus for vibrant swatches
+      const vibrancy = (a.role.includes('Vibrant') ? 1.5 : 0) + (b.role.includes('Vibrant') ? 1.5 : 0);
+      // Bonus for high population (prominent in the image)
+      const prominence = (a.population + b.population) / 100000;
+      const score = ratio + vibrancy + Math.min(prominence, 2);
+
+      if (score > bestScore) {
+        bestScore = score;
+        // Darker color as bg, lighter as fg
+        const aLum = relativeLuminanceFromHex(a.hex);
+        const bLum = relativeLuminanceFromHex(b.hex);
+        bestPair = aLum < bLum
+          ? { bg: a.hex, fg: b.hex }
+          : { bg: b.hex, fg: a.hex };
+      }
+    }
+  }
+
+  if (!bestPair) {
+    // Fallback: darkest and lightest
+    const sorted = [...swatches].sort((a, b) =>
+      relativeLuminanceFromHex(a.hex) - relativeLuminanceFromHex(b.hex)
+    );
+    bestPair = { bg: sorted[0].hex, fg: sorted[sorted.length - 1].hex };
+  }
+
+  // Bump fg to guarantee AA contrast
+  const targetScore = algorithm === 'APCA' ? 60 : 4.5;
+  const safeFg = bumpToThreshold(bestPair.bg, bestPair.fg, targetScore, algorithm);
+  return { bg: bestPair.bg, fg: safeFg };
+}
+
+// Exposed for extractContrastPair scoring
+function relativeLuminanceFromHex(hex: string): number {
+  const parsed = parse(hex);
+  if (!parsed) return 0;
+  const c = toRgb(parsed);
+  return 0.2126 * linearize(c?.r ?? 0) + 0.7152 * linearize(c?.g ?? 0) + 0.0722 * linearize(c?.b ?? 0);
 }
 
 // ── Parse Any Format ───────────────────────────────────────────────────
