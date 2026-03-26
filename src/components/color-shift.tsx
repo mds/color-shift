@@ -160,6 +160,12 @@ export function ColorShift() {
     });
   }, []);
 
+  // Deduplicate photos by id
+  const dedupePhotos = useCallback((existing: PhotoData[], incoming: PhotoData[]): PhotoData[] => {
+    const ids = new Set(existing.map(p => p.id));
+    return incoming.filter(p => !ids.has(p.id));
+  }, []);
+
   // Prefetch more photos when nearing the end of the buffer
   const maybeRefill = useCallback(async (currentIdx: number, buffer: PhotoData[]) => {
     if (isFetchingMore.current) return;
@@ -167,13 +173,14 @@ export function ColorShift() {
     if (remaining <= 1) {
       isFetchingMore.current = true;
       const more = await fetchPhotos(3);
-      if (more.length > 0) {
-        preloadImages(more);
-        setPhotoBuffer(prev => [...prev, ...more]);
+      const unique = dedupePhotos(buffer, more);
+      if (unique.length > 0) {
+        preloadImages(unique);
+        setPhotoBuffer(prev => [...prev, ...dedupePhotos(prev, unique)]);
       }
       isFetchingMore.current = false;
     }
-  }, [fetchPhotos, preloadImages]);
+  }, [fetchPhotos, preloadImages, dedupePhotos]);
 
   // Initial photo load — fetch 3, show first, preload rest
   const handleLoadPhoto = useCallback(async () => {
@@ -190,19 +197,10 @@ export function ColorShift() {
     setIsPhotoLoading(false);
   }, [fetchPhotos, preloadImages]);
 
-  const handlePhotoPrev = useCallback(() => {
-    if (photoIndex > 0) {
-      setPhotoIndex(i => i - 1);
-    }
-  }, [photoIndex]);
-
-  const handlePhotoNext = useCallback(() => {
-    const nextIdx = photoIndex + 1;
-    if (nextIdx < photoBuffer.length) {
-      setPhotoIndex(nextIdx);
-      maybeRefill(nextIdx, photoBuffer);
-    }
-  }, [photoIndex, photoBuffer, maybeRefill]);
+  const handlePhotoIndexChange = useCallback((newIndex: number) => {
+    setPhotoIndex(newIndex);
+    maybeRefill(newIndex, photoBuffer);
+  }, [photoBuffer, maybeRefill]);
 
   const handlePhotoColorsExtracted = useCallback((newBg: string, newFg: string) => {
     setBgHex(newBg);
@@ -292,11 +290,8 @@ export function ColorShift() {
           currentIndex={photoIndex}
           contrastAlgorithm={contrastAlgorithm}
           onColorsExtracted={handlePhotoColorsExtracted}
-          onPrev={handlePhotoPrev}
-          onNext={handlePhotoNext}
+          onIndexChange={handlePhotoIndexChange}
           onCollapse={handlePhotoCollapse}
-          hasPrev={photoIndex > 0}
-          hasNext={photoIndex < photoBuffer.length - 1}
         />
       )}
 
