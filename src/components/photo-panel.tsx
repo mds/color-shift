@@ -77,26 +77,23 @@ function createGridCells(
   const cellH = containerH / gridSize;
   const cells: HTMLDivElement[] = [];
 
+  // Percentage positions for background-position with background-size: N*100%
+  // Each cell shows a 1/N portion of the image
   for (let r = 0; r < gridSize; r++) {
     for (let c = 0; c < gridSize; c++) {
       const cell = document.createElement('div');
       cell.style.position = 'absolute';
-      cell.style.overflow = 'hidden';
       cell.style.left = `${c * cellW}px`;
       cell.style.top = `${r * cellH}px`;
       cell.style.width = `${cellW}px`;
       cell.style.height = `${cellH}px`;
+      cell.style.backgroundImage = `url("${imgSrc}")`;
+      // Size the background to the full container dimensions
+      // so each cell shows its correct portion
+      cell.style.backgroundSize = `${containerW}px ${containerH}px`;
+      cell.style.backgroundPosition = `${-c * cellW}px ${-r * cellH}px`;
+      cell.style.backgroundRepeat = 'no-repeat';
 
-      const img = document.createElement('img');
-      img.src = imgSrc;
-      img.style.position = 'absolute';
-      img.style.left = `${-c * cellW}px`;
-      img.style.top = `${-r * cellH}px`;
-      img.style.width = `${containerW}px`;
-      img.style.height = `${containerH}px`;
-      img.style.objectFit = 'cover';
-
-      cell.appendChild(img);
       container.appendChild(cell);
       cells.push(cell);
     }
@@ -298,6 +295,17 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange, transition }: 
     if (layer) { while (layer.firstChild) layer.removeChild(layer.firstChild); }
   }, []);
 
+  // Render image to a temp canvas with correct aspect ratio, return data URL
+  const renderCoveredImage = useCallback((img: HTMLImageElement, w: number, h: number): string => {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    if (!ctx) return img.src;
+    const crop = coverRect(img, w, h);
+    ctx.drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, w, h);
+    return c.toDataURL('image/jpeg', 0.85);
+  }, []);
+
   const runGsapTransition = useCallback((imgB: HTMLImageElement, transType: TransitionType) => {
     const container = containerRef.current;
     const gridLayer = gridLayerRef.current;
@@ -305,14 +313,16 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange, transition }: 
     if (timelineRef.current) timelineRef.current.kill();
     clearGridLayer();
     const rect = container.getBoundingClientRect();
-    const cells = createGridCells(gridLayer, imgB.src, GRID_SIZE, rect.width, rect.height);
+    // Render aspect-correct image to data URL for grid cells
+    const coveredSrc = renderCoveredImage(imgB, Math.round(rect.width), Math.round(rect.height));
+    const cells = createGridCells(gridLayer, coveredSrc, GRID_SIZE, rect.width, rect.height);
     isAnimating.current = true;
     timelineRef.current = runGridTransition(transType, cells, GRID_SIZE, () => {
       drawPhoto(imgB);
       clearGridLayer();
       isAnimating.current = false;
     });
-  }, [GRID_SIZE, drawPhoto, clearGridLayer]);
+  }, [GRID_SIZE, drawPhoto, clearGridLayer, renderCoveredImage]);
 
   useEffect(() => {
     const p = buffer[currentIndex];
