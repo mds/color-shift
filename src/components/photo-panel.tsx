@@ -48,6 +48,7 @@ interface PhotoPanelProps {
 
 export function PhotoPanel({ buffer, currentIndex, onIndexChange }: PhotoPanelProps) {
   const isReinitialing = useRef(false);
+  const emblaIsSource = useRef(false); // true when Embla initiated the change
 
   const [emblaRef, emblaApi] = useEmblaCarousel({
     startIndex: currentIndex,
@@ -55,23 +56,29 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange }: PhotoPanelPr
     duration: 20,
   });
 
-  // Sync Embla → parent on select (immediate, not settle)
-  // This fires the moment a slide starts, so GSAP color animation
-  // runs in parallel with Embla's slide animation.
+  // Embla fires select → tell parent immediately (for color easing)
   useEffect(() => {
     if (!emblaApi) return;
     const onSelect = () => {
       if (isReinitialing.current) return;
       const idx = emblaApi.selectedScrollSnap();
-      if (idx !== currentIndex) onIndexChange(idx);
+      if (idx !== currentIndex) {
+        emblaIsSource.current = true;
+        onIndexChange(idx);
+      }
     };
     emblaApi.on('select', onSelect);
     return () => { emblaApi.off('select', onSelect); };
   }, [emblaApi, currentIndex, onIndexChange]);
 
-  // Scroll when parent changes index (keyboard nav)
+  // When parent changes index externally (not from Embla), scroll Embla
   useEffect(() => {
     if (!emblaApi || isReinitialing.current) return;
+    if (emblaIsSource.current) {
+      // This change came from Embla — don't scroll back
+      emblaIsSource.current = false;
+      return;
+    }
     if (emblaApi.selectedScrollSnap() !== currentIndex) {
       emblaApi.scrollTo(currentIndex);
     }
