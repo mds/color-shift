@@ -61,11 +61,12 @@ interface PhotoOverlayProps {
   onIndexChange: (index: number) => void;
   onCollapse: () => void;
   thumbRef: React.RefObject<HTMLButtonElement | null>;
+  extractedIds: Set<string>;
 }
 
 export function PhotoOverlay({
   buffer, currentIndex, contrastAlgorithm,
-  onColorsExtracted, onIndexChange, onCollapse, thumbRef,
+  onColorsExtracted, onIndexChange, onCollapse, thumbRef, extractedIds,
 }: PhotoOverlayProps) {
   const [colorsReady, setColorsReady] = useState(false);
   const [extracting, setExtracting] = useState(false);
@@ -178,6 +179,14 @@ export function PhotoOverlay({
   const runExtraction = useCallback(async (imgEl: HTMLImageElement, idx: number) => {
     if (extractedForIndex.current === idx) return;
     extractedForIndex.current = idx;
+
+    // Skip if colors already cached — don't overwrite what the user is seeing
+    const photo = buffer[idx];
+    if (photo && extractedIds.has(photo.id)) {
+      setColorsReady(true);
+      return;
+    }
+
     setExtracting(true);
 
     try {
@@ -203,7 +212,7 @@ export function PhotoOverlay({
     } finally {
       setExtracting(false);
     }
-  }, [contrastAlgorithm, onColorsExtracted]);
+  }, [buffer, extractedIds, contrastAlgorithm, onColorsExtracted]);
 
   const handleFullLoaded = useCallback((imgEl: HTMLImageElement) => {
     runExtraction(imgEl, currentIndex);

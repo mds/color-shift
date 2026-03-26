@@ -50,6 +50,7 @@ export function ColorShift() {
 
   // Cache extracted colors per photo id
   const colorCache = useRef<Map<string, PhotoColors>>(new Map());
+  const [extractedIds, setExtractedIds] = useState<Set<string>>(new Set());
 
   const photoData = photoBuffer.length > 0 ? photoBuffer[photoIndex] ?? null : null;
 
@@ -197,9 +198,9 @@ export function ColorShift() {
   const handlePhotoColorsExtracted = useCallback((newBg: string, newFg: string) => {
     setBgHex(newBg);
     setFgHex(newFg);
-    // Cache for this photo
     if (photoData) {
       colorCache.current.set(photoData.id, { bg: newBg, fg: newFg });
+      setExtractedIds(prev => new Set(prev).add(photoData.id));
     }
   }, [photoData]);
 
@@ -366,6 +367,7 @@ export function ColorShift() {
           onIndexChange={handlePhotoIndexChange}
           onCollapse={handlePhotoCollapse}
           thumbRef={photoThumbRef}
+          extractedIds={extractedIds}
         />
       )}
 
