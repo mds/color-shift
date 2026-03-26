@@ -364,9 +364,10 @@ export function formatColorValue(data: ColorData, format: ColorFormat): string {
 // ── Export ──────────────────────────────────────────────────────────────
 
 export function generateExportMarkdown(
-  bg: ColorData, fg: ColorData, contrast: ContrastResult, algorithm: ContrastAlgorithm
+  bg: ColorData, fg: ColorData, contrast: ContrastResult, algorithm: ContrastAlgorithm,
+  photoCredit?: { photographer: string; photoUrl: string }
 ): string {
-  return `# Color Shift Export
+  let md = `# Color Shift Export
 
 ## Background
 - HEX: ${bg.hex.toUpperCase()}
@@ -387,6 +388,49 @@ export function generateExportMarkdown(
 - Grade: ${contrast.grade}
 - ${contrast.gradeDesc}
 `;
+
+  if (photoCredit) {
+    md += `
+## Photo Credit
+- Photographer: ${photoCredit.photographer}
+- Photo: ${photoCredit.photoUrl}
+`;
+  }
+
+  return md;
+}
+
+// ── Photo Color Extraction ────────────────────────────────────────────
+
+export interface VibrantSwatch {
+  hex: string;
+  population: number;
+}
+
+export interface VibrantPalette {
+  Vibrant?: VibrantSwatch | null;
+  DarkVibrant?: VibrantSwatch | null;
+  LightVibrant?: VibrantSwatch | null;
+  Muted?: VibrantSwatch | null;
+  DarkMuted?: VibrantSwatch | null;
+  LightMuted?: VibrantSwatch | null;
+}
+
+export function extractContrastPair(
+  palette: VibrantPalette,
+  algorithm: ContrastAlgorithm = 'WCAG2'
+): { bg: string; fg: string } | null {
+  const darkCandidates = [palette.DarkMuted, palette.DarkVibrant, palette.Muted];
+  const lightCandidates = [palette.LightVibrant, palette.LightMuted, palette.Vibrant];
+
+  const bg = darkCandidates.find(s => s?.hex)?.hex;
+  const fg = lightCandidates.find(s => s?.hex)?.hex;
+
+  if (!bg || !fg) return null;
+
+  // Ensure the pair passes at least AA
+  const safeFg = bumpToThreshold(bg, fg, algorithm === 'APCA' ? 60 : 4.5, algorithm);
+  return { bg, fg: safeFg };
 }
 
 // ── Parse Any Format ───────────────────────────────────────────────────
