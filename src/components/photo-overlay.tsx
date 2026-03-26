@@ -218,8 +218,16 @@ export function PhotoOverlay({
     runExtraction(imgEl, currentIndex);
   }, [runExtraction, currentIndex]);
 
-  // Reset + re-extract on index change
+  // Reset + re-extract on index change (skip if already cached)
   useEffect(() => {
+    const photo = buffer[currentIndex];
+    if (photo && extractedIds.has(photo.id)) {
+      setColorsReady(true);
+      setExtracting(false);
+      extractedForIndex.current = currentIndex;
+      return;
+    }
+
     setColorsReady(false);
     setExtracting(false);
     extractedForIndex.current = -1;
@@ -235,7 +243,7 @@ export function PhotoOverlay({
       }
     }, 50);
     return () => clearTimeout(timer);
-  }, [currentIndex, runExtraction]);
+  }, [currentIndex, runExtraction, buffer, extractedIds]);
 
   // Keyboard
   useEffect(() => {

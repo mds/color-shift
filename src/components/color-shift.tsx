@@ -195,12 +195,16 @@ export function ColorShift() {
   }, [photoBuffer, applyPhotoColors, maybeRefill, preloadImages]);
 
   // When vibrant extraction completes, cache the result and apply
+  // Only update colors if they actually changed (prevents shifts on overlay open)
   const handlePhotoColorsExtracted = useCallback((newBg: string, newFg: string) => {
-    setBgHex(newBg);
-    setFgHex(newFg);
+    setBgHex(prev => prev === newBg ? prev : newBg);
+    setFgHex(prev => prev === newFg ? prev : newFg);
     if (photoData) {
       colorCache.current.set(photoData.id, { bg: newBg, fg: newFg });
-      setExtractedIds(prev => new Set(prev).add(photoData.id));
+      setExtractedIds(prev => {
+        if (prev.has(photoData.id)) return prev;
+        return new Set(prev).add(photoData.id);
+      });
     }
   }, [photoData]);
 
