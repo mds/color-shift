@@ -35,6 +35,7 @@ interface ControlStripProps {
   contrastAlgorithm: ContrastAlgorithm;
   colorFormat: ColorFormat;
   photoThumb: string | null;
+  photoThumbRef: React.RefObject<HTMLButtonElement | null>;
   isPhotoLoading: boolean;
   onBgInput: (value: string) => void;
   onFgInput: (value: string) => void;
@@ -149,7 +150,7 @@ export function ControlStrip(props: ControlStripProps) {
   const {
     bg, fg, bgHex, fgHex, contrast, activeThreshold,
     theme, sliderMode, contrastAlgorithm, colorFormat,
-    photoThumb, isPhotoLoading,
+    photoThumb, photoThumbRef, isPhotoLoading,
     onBgInput, onFgInput, onSwap, onBumpUp, onBumpDown, onBumpTo,
     onUpdateBgHsb, onUpdateFgHsb, onUpdateBgOklch, onUpdateFgOklch,
     onCycleFormat, onGenerate, onLoadPhoto, onPhotoOpen,
@@ -190,9 +191,9 @@ export function ControlStrip(props: ControlStripProps) {
           {/* Photo thumbnail */}
           {photoThumb && (
             <button
+              ref={photoThumbRef}
               onClick={onPhotoOpen}
               className="w-9 h-9 rounded-lg overflow-hidden shrink-0 ring-1 ring-white/10"
-              data-flip-id="photo"
             >
               <img src={photoThumb} className="w-full h-full object-cover" alt="Source" />
             </button>

@@ -50,6 +50,7 @@ export function ColorShift() {
   const rootRef = useRef<HTMLDivElement>(null);
   const specimenRef = useRef<HTMLDivElement>(null);
   const specimenInputRef = useRef<HTMLInputElement>(null);
+  const photoThumbRef = useRef<HTMLButtonElement>(null);
 
   // Derived values
   const bg = hexToColorData(bgHex);
@@ -305,6 +306,7 @@ export function ColorShift() {
           onColorsExtracted={handlePhotoColorsExtracted}
           onIndexChange={handlePhotoIndexChange}
           onCollapse={handlePhotoCollapse}
+          thumbRef={photoThumbRef}
         />
       )}
 
@@ -320,6 +322,7 @@ export function ColorShift() {
         contrastAlgorithm={contrastAlgorithm}
         colorFormat={colorFormat}
         photoThumb={photoData?.thumbUrl ?? null}
+        photoThumbRef={photoThumbRef}
         isPhotoLoading={isPhotoLoading}
         onBgInput={handleBgInput}
         onFgInput={handleFgInput}

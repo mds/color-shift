@@ -10,50 +10,28 @@ import type { ContrastAlgorithm } from '@/lib/color-engine';
 // ── Progressive Image ─────────────────────────────────────────────────
 
 function ProgressiveImage({
-  thumbUrl,
-  fullUrl,
-  alt,
-  color,
-  isCurrent,
-  onFullLoaded,
+  thumbUrl, fullUrl, alt, color, isCurrent, onFullLoaded,
 }: {
-  thumbUrl: string;
-  fullUrl: string;
-  alt: string;
-  color: string;
-  isCurrent: boolean;
-  onFullLoaded: (img: HTMLImageElement) => void;
+  thumbUrl: string; fullUrl: string; alt: string; color: string;
+  isCurrent: boolean; onFullLoaded: (img: HTMLImageElement) => void;
 }) {
   const [fullReady, setFullReady] = useState(false);
   const fullRef = useRef<HTMLImageElement>(null);
 
   return (
     <div className="relative w-full h-full" style={{ backgroundColor: color }}>
-      {/* Thumb — instant, blurred placeholder */}
       <img
-        src={thumbUrl}
-        alt=""
-        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
-          fullReady ? 'opacity-0' : 'opacity-100'
-        }`}
+        src={thumbUrl} alt=""
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${fullReady ? 'opacity-0' : 'opacity-100'}`}
         style={{ filter: 'blur(20px)', transform: 'scale(1.1)' }}
       />
-
-      {/* Full res — crossfades in */}
       <img
-        ref={fullRef}
-        src={fullUrl}
-        alt={alt}
-        crossOrigin="anonymous"
+        ref={fullRef} src={fullUrl} alt={alt} crossOrigin="anonymous"
         onLoad={() => {
           setFullReady(true);
-          if (isCurrent && fullRef.current) {
-            onFullLoaded(fullRef.current);
-          }
+          if (isCurrent && fullRef.current) onFullLoaded(fullRef.current);
         }}
-        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
-          fullReady ? 'opacity-100' : 'opacity-0'
-        }`}
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${fullReady ? 'opacity-100' : 'opacity-0'}`}
       />
     </div>
   );
@@ -68,59 +46,115 @@ interface PhotoOverlayProps {
   onColorsExtracted: (bg: string, fg: string) => void;
   onIndexChange: (index: number) => void;
   onCollapse: () => void;
+  thumbRef: React.RefObject<HTMLButtonElement | null>;
 }
 
 export function PhotoOverlay({
   buffer, currentIndex, contrastAlgorithm,
-  onColorsExtracted, onIndexChange, onCollapse,
+  onColorsExtracted, onIndexChange, onCollapse, thumbRef,
 }: PhotoOverlayProps) {
   const [colorsReady, setColorsReady] = useState(false);
   const [extracting, setExtracting] = useState(false);
+  const [isAnimatingIn, setIsAnimatingIn] = useState(true);
   const overlayRef = useRef<HTMLDivElement>(null);
   const extractedForIndex = useRef(-1);
 
   const photo = buffer[currentIndex];
 
-  // Embla — single source of truth for slide position
+  // Embla
   const [emblaRef, emblaApi] = useEmblaCarousel({
     startIndex: currentIndex,
     loop: false,
-    duration: 20, // fast snapping (lower = faster, in ms-ish)
+    duration: 20,
   });
 
-  // When Embla settles on a slide, tell the parent
+  // Sync Embla → parent
   useEffect(() => {
     if (!emblaApi) return;
-
     const onSettle = () => {
       const idx = emblaApi.selectedScrollSnap();
-      if (idx !== currentIndex) {
-        onIndexChange(idx);
-      }
+      if (idx !== currentIndex) onIndexChange(idx);
     };
-
     emblaApi.on('settle', onSettle);
     return () => { emblaApi.off('settle', onSettle); };
   }, [emblaApi, currentIndex, onIndexChange]);
 
-  // When buffer grows, reinit Embla to pick up new slides
+  // Reinit when buffer grows
   const bufferLen = buffer.length;
-  useEffect(() => {
-    if (!emblaApi) return;
-    emblaApi.reInit();
-  }, [emblaApi, bufferLen]);
+  useEffect(() => { emblaApi?.reInit(); }, [emblaApi, bufferLen]);
 
-  // Animate overlay in
+  // ── Animate IN from thumbnail ──────────────────────────────────────
+
   useEffect(() => {
-    if (overlayRef.current) {
-      gsap.fromTo(overlayRef.current,
+    const overlay = overlayRef.current;
+    if (!overlay) return;
+
+    const thumbEl = thumbRef.current;
+    if (thumbEl) {
+      const rect = thumbEl.getBoundingClientRect();
+      // Start at the thumbnail's position and size
+      gsap.set(overlay, {
+        position: 'fixed',
+        top: rect.top,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height,
+        borderRadius: '8px',
+        opacity: 1,
+        zIndex: 50,
+        overflow: 'hidden',
+      });
+
+      // Animate to full screen
+      gsap.to(overlay, {
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        borderRadius: '0px',
+        duration: 0.5,
+        ease: 'power3.inOut',
+        onComplete: () => setIsAnimatingIn(false),
+      });
+    } else {
+      // No thumb (first load) — just fade in
+      gsap.fromTo(overlay,
         { opacity: 0 },
-        { opacity: 1, duration: 0.4, ease: 'power2.out' }
+        { opacity: 1, duration: 0.4, ease: 'power2.out', onComplete: () => setIsAnimatingIn(false) }
       );
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Extract colors from full-res image
+  // ── Animate OUT to thumbnail ───────────────────────────────────────
+
+  const handleCollapse = useCallback(() => {
+    const overlay = overlayRef.current;
+    if (!overlay) return;
+
+    const thumbEl = thumbRef.current;
+    if (thumbEl) {
+      const rect = thumbEl.getBoundingClientRect();
+      gsap.to(overlay, {
+        top: rect.top,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height,
+        borderRadius: '8px',
+        duration: 0.45,
+        ease: 'power3.inOut',
+        onComplete: onCollapse,
+      });
+    } else {
+      gsap.to(overlay, {
+        opacity: 0, duration: 0.35, ease: 'power2.in',
+        onComplete: onCollapse,
+      });
+    }
+  }, [onCollapse, thumbRef]);
+
+  // ── Color extraction ───────────────────────────────────────────────
+
   const runExtraction = useCallback(async (imgEl: HTMLImageElement, idx: number) => {
     if (extractedForIndex.current === idx) return;
     extractedForIndex.current = idx;
@@ -151,18 +185,16 @@ export function PhotoOverlay({
     }
   }, [contrastAlgorithm, onColorsExtracted]);
 
-  // Handle full-res image load — called from ProgressiveImage onLoad
   const handleFullLoaded = useCallback((imgEl: HTMLImageElement) => {
     runExtraction(imgEl, currentIndex);
   }, [runExtraction, currentIndex]);
 
-  // Reset on photo change + re-extract if image already cached
+  // Reset + re-extract on index change
   useEffect(() => {
     setColorsReady(false);
     setExtracting(false);
     extractedForIndex.current = -1;
 
-    // Check if the current slide's full-res is already loaded (cached)
     const timer = setTimeout(() => {
       const slides = overlayRef.current?.querySelectorAll('[data-slide]');
       if (!slides) return;
@@ -175,15 +207,6 @@ export function PhotoOverlay({
     }, 50);
     return () => clearTimeout(timer);
   }, [currentIndex, runExtraction]);
-
-  const handleCollapse = useCallback(() => {
-    if (overlayRef.current) {
-      gsap.to(overlayRef.current, {
-        opacity: 0, duration: 0.35, ease: 'power2.in',
-        onComplete: onCollapse,
-      });
-    }
-  }, [onCollapse]);
 
   // Keyboard
   useEffect(() => {
@@ -202,29 +225,43 @@ export function PhotoOverlay({
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50"
-      style={{ backgroundColor: photo?.color ?? '#000' }}
+      className="fixed overflow-hidden"
+      style={{
+        backgroundColor: photo?.color ?? '#000',
+        inset: 0,
+        zIndex: 50,
+      }}
     >
-      {/* Embla viewport */}
-      <div ref={emblaRef} className="h-full overflow-hidden">
+      {/* Carousel — hidden during entry animation */}
+      <div
+        ref={emblaRef}
+        className="h-full overflow-hidden"
+        style={{ opacity: isAnimatingIn ? 0 : 1, transition: 'opacity 0.2s' }}
+      >
         <div className="flex h-full">
           {buffer.map((p, i) => (
             <div key={p.id + '-' + i} data-slide className="flex-[0_0_100%] min-w-0 h-full">
               <ProgressiveImage
-                thumbUrl={p.thumbUrl}
-                fullUrl={p.url}
-                alt={p.alt}
-                color={p.color}
-                isCurrent={i === currentIndex}
-                onFullLoaded={handleFullLoaded}
+                thumbUrl={p.thumbUrl} fullUrl={p.url} alt={p.alt} color={p.color}
+                isCurrent={i === currentIndex} onFullLoaded={handleFullLoaded}
               />
             </div>
           ))}
         </div>
       </div>
 
+      {/* Current photo's thumb as the initial visible content during animation */}
+      {isAnimatingIn && photo && (
+        <img
+          src={photo.thumbUrl}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ filter: 'blur(10px)', transform: 'scale(1.05)' }}
+        />
+      )}
+
       {/* Arrow buttons */}
-      {canPrev && (
+      {!isAnimatingIn && canPrev && (
         <button
           onClick={() => emblaApi?.scrollPrev()}
           className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/20 backdrop-blur-sm text-white/70 hover:bg-black/40 hover:text-white transition-colors"
@@ -234,7 +271,7 @@ export function PhotoOverlay({
           </svg>
         </button>
       )}
-      {canNext && (
+      {!isAnimatingIn && canNext && (
         <button
           onClick={() => emblaApi?.scrollNext()}
           className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/20 backdrop-blur-sm text-white/70 hover:bg-black/40 hover:text-white transition-colors"
@@ -246,20 +283,20 @@ export function PhotoOverlay({
       )}
 
       {/* Bottom controls */}
-      <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/60 to-transparent">
-        <div className="flex items-end justify-between">
-          <div className="text-white/70 text-[11px] font-mono">
-            <span>Photo by </span>
-            <a href={photo?.photographerUrl} target="_blank" rel="noopener noreferrer" className="text-white/90 underline underline-offset-2">
-              {photo?.photographer}
-            </a>
-            <span> on </span>
-            <a href="https://unsplash.com" target="_blank" rel="noopener noreferrer" className="text-white/90 underline underline-offset-2">
-              Unsplash
-            </a>
-          </div>
+      {!isAnimatingIn && (
+        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/60 to-transparent">
+          <div className="flex items-end justify-between">
+            <div className="text-white/70 text-[11px] font-mono">
+              <span>Photo by </span>
+              <a href={photo?.photographerUrl} target="_blank" rel="noopener noreferrer" className="text-white/90 underline underline-offset-2">
+                {photo?.photographer}
+              </a>
+              <span> on </span>
+              <a href="https://unsplash.com" target="_blank" rel="noopener noreferrer" className="text-white/90 underline underline-offset-2">
+                Unsplash
+              </a>
+            </div>
 
-          <div className="flex items-center gap-2">
             <button
               onClick={handleCollapse}
               className="px-3 py-1.5 rounded-lg bg-white/15 backdrop-blur-sm text-white/90 text-[12px] font-mono hover:bg-white/25 transition-colors"
@@ -268,12 +305,14 @@ export function PhotoOverlay({
             </button>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Counter */}
-      <div className="absolute top-4 right-4 text-white/30 text-[10px] font-mono">
-        {currentIndex + 1}/{buffer.length} &middot; ← → slide &middot; Esc close
-      </div>
+      {!isAnimatingIn && (
+        <div className="absolute top-4 right-4 text-white/30 text-[10px] font-mono">
+          {currentIndex + 1}/{buffer.length} &middot; ← → slide &middot; Esc close
+        </div>
+      )}
     </div>
   );
 }
