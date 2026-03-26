@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const count = Math.min(parseInt(searchParams.get('count') ?? '1'), 10);
+  const count = Math.min(parseInt(searchParams.get('count') ?? '1'), 30);
 
   try {
     const res = await fetch(

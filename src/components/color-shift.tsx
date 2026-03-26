@@ -152,11 +152,19 @@ export function ColorShift() {
     return data as PhotoData[];
   }, []);
 
-  // Preload images into browser cache
+  // Preload full-res images into browser cache
   const preloadImages = useCallback((photos: PhotoData[]) => {
     photos.forEach(p => {
       const img = new Image();
       img.src = p.url;
+    });
+  }, []);
+
+  // Preload thumb images (tiny, ~2KB each) for instant carousel
+  const preloadThumbs = useCallback((photos: PhotoData[]) => {
+    photos.forEach(p => {
+      const img = new Image();
+      img.src = p.thumbUrl;
     });
   }, []);
 
@@ -170,37 +178,42 @@ export function ColorShift() {
   const maybeRefill = useCallback(async (currentIdx: number, buffer: PhotoData[]) => {
     if (isFetchingMore.current) return;
     const remaining = buffer.length - currentIdx - 1;
-    if (remaining <= 1) {
+    if (remaining <= 3) {
       isFetchingMore.current = true;
-      const more = await fetchPhotos(3);
+      const more = await fetchPhotos(10);
       const unique = dedupePhotos(buffer, more);
       if (unique.length > 0) {
-        preloadImages(unique);
+        preloadThumbs(unique);
+        preloadImages(unique.slice(0, 3));
         setPhotoBuffer(prev => [...prev, ...dedupePhotos(prev, unique)]);
       }
       isFetchingMore.current = false;
     }
-  }, [fetchPhotos, preloadImages, dedupePhotos]);
+  }, [fetchPhotos, preloadImages, preloadThumbs, dedupePhotos]);
 
-  // Initial photo load — fetch 3, show first, preload rest
+  // Initial photo load — fetch 10, preload all thumbs + first 3 full-res
   const handleLoadPhoto = useCallback(async () => {
     setIsPhotoLoading(true);
-    const photos = await fetchPhotos(3);
+    const photos = await fetchPhotos(10);
     if (photos.length === 0) {
       setIsPhotoLoading(false);
       return;
     }
-    preloadImages(photos);
+    preloadThumbs(photos);
+    preloadImages(photos.slice(0, 3));
     setPhotoBuffer(photos);
     setPhotoIndex(0);
     setIsPhotoFullScreen(true);
     setIsPhotoLoading(false);
-  }, [fetchPhotos, preloadImages]);
+  }, [fetchPhotos, preloadImages, preloadThumbs]);
 
   const handlePhotoIndexChange = useCallback((newIndex: number) => {
     setPhotoIndex(newIndex);
     maybeRefill(newIndex, photoBuffer);
-  }, [photoBuffer, maybeRefill]);
+    // Preload full-res for the next 2 photos ahead
+    const ahead = photoBuffer.slice(newIndex + 1, newIndex + 3);
+    preloadImages(ahead);
+  }, [photoBuffer, maybeRefill, preloadImages]);
 
   const handlePhotoColorsExtracted = useCallback((newBg: string, newFg: string) => {
     setBgHex(newBg);
