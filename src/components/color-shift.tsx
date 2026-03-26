@@ -58,7 +58,7 @@ export function ColorShift() {
   // ── Derive bg/fg from photo + cache + manual override ──
   const colors = useMemo((): PhotoColors => {
     if (manualColors) return manualColors;
-    if (!photoData) return { bg: '#1A1A2E', fg: '#E8D5B7' };
+    if (!photoData) return { bg: '#000000', fg: '#000000' }; // invisible until loaded
     const cached = colorMap.get(photoData.id);
     if (cached) return cached;
     const safeFg = bumpToThreshold(photoData.color, '#FFFFFF', 4.5, 'WCAG2');
@@ -67,6 +67,9 @@ export function ColorShift() {
 
   const bgHex = colors.bg;
   const fgHex = colors.fg;
+
+  // App is ready once we have a photo with colors
+  const isReady = photoData !== null;
 
   // Clear manual override when photo changes
   useEffect(() => {
@@ -350,7 +353,12 @@ export function ColorShift() {
   }, [generate, swap, toggleTheme, handlePhotoOpen, navigatePhotos, isPhotoFullScreen]);
 
   return (
-    <div ref={rootRef} className="h-screen flex flex-col" data-theme={theme} style={{ backgroundColor: bgHex }}>
+    <div
+      ref={rootRef}
+      className={`h-screen flex flex-col transition-opacity duration-700 ${isReady ? 'opacity-100' : 'opacity-0'}`}
+      data-theme={theme}
+      style={{ backgroundColor: bgHex }}
+    >
       <Specimen
         ref={specimenRef} bgHex={bgHex} fgHex={fgHex}
         text={specimenText} onTextChange={setSpecimenText} inputRef={specimenInputRef}
