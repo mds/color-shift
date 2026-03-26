@@ -189,17 +189,6 @@ export function ControlStrip(props: ControlStripProps) {
       <div className={`${chrome} rounded-2xl overflow-hidden`}>
         {/* Compact strip */}
         <div className="px-4 py-3 flex items-center gap-2">
-          {/* Photo thumbnail */}
-          {photoThumb && (
-            <button
-              ref={photoThumbRef}
-              onClick={onPhotoOpen}
-              className="w-9 h-9 rounded-lg overflow-hidden shrink-0 ring-1 ring-white/10"
-            >
-              <img src={photoThumb} className="w-full h-full object-cover" alt="Source" />
-            </button>
-          )}
-
           {/* BG swatch */}
           <button
             onClick={() => togglePanel('bg')}
@@ -262,12 +251,20 @@ export function ControlStrip(props: ControlStripProps) {
             <ShuffleIcon />
           </button>
           <button
-            onClick={onLoadPhoto}
+            ref={photoThumbRef}
+            onClick={photoThumb ? onPhotoOpen : onLoadPhoto}
             disabled={isPhotoLoading}
-            className={`p-1.5 rounded-md ${hoverBg} ${textMuted} disabled:opacity-30`}
-            title="Load photo (P)"
+            className={`relative p-1.5 rounded-md ${hoverBg} ${textMuted} disabled:opacity-30 overflow-hidden`}
+            title={photoThumb ? 'View photo' : 'Load photo (P)'}
           >
             {isPhotoLoading ? <SpinnerIcon /> : <PhotoIcon />}
+            {photoThumb && (
+              <img
+                src={photoThumb}
+                alt="Source"
+                className="absolute inset-0 w-full h-full object-cover rounded-md"
+              />
+            )}
           </button>
           <button onClick={onToggleTheme} className={`p-1.5 rounded-md ${hoverBg} ${textMuted}`} title="Theme (T)">
             {isDark ? <SunIcon /> : <MoonIcon />}
