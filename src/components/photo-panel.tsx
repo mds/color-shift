@@ -48,41 +48,24 @@ interface PhotoPanelProps {
 
 export function PhotoPanel({ buffer, currentIndex, onIndexChange }: PhotoPanelProps) {
   const isReinitialing = useRef(false);
-  const emblaIsSource = useRef(false); // true when Embla initiated the change
 
   const [emblaRef, emblaApi] = useEmblaCarousel({
     startIndex: currentIndex,
     loop: false,
-    duration: 20,
+    duration: 25,
   });
 
-  // Embla fires select → tell parent immediately (for color easing)
+  // Drag/touch: sync to parent after Embla settles (no interference)
   useEffect(() => {
     if (!emblaApi) return;
-    const onSelect = () => {
+    const onSettle = () => {
       if (isReinitialing.current) return;
       const idx = emblaApi.selectedScrollSnap();
-      if (idx !== currentIndex) {
-        emblaIsSource.current = true;
-        onIndexChange(idx);
-      }
+      if (idx !== currentIndex) onIndexChange(idx);
     };
-    emblaApi.on('select', onSelect);
-    return () => { emblaApi.off('select', onSelect); };
+    emblaApi.on('settle', onSettle);
+    return () => { emblaApi.off('settle', onSettle); };
   }, [emblaApi, currentIndex, onIndexChange]);
-
-  // When parent changes index externally (not from Embla), scroll Embla
-  useEffect(() => {
-    if (!emblaApi || isReinitialing.current) return;
-    if (emblaIsSource.current) {
-      // This change came from Embla — don't scroll back
-      emblaIsSource.current = false;
-      return;
-    }
-    if (emblaApi.selectedScrollSnap() !== currentIndex) {
-      emblaApi.scrollTo(currentIndex);
-    }
-  }, [emblaApi, currentIndex]);
 
   // Reinit when buffer grows
   const bufferLen = buffer.length;
@@ -94,17 +77,34 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange }: PhotoPanelPr
     requestAnimationFrame(() => { isReinitialing.current = false; });
   }, [emblaApi, bufferLen, currentIndex]);
 
-  // Arrow keys for photo navigation
+  // Arrow keys: update parent immediately AND scroll Embla
+  // This fires the color GSAP animation in parallel with the slide.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (!emblaApi) return;
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT') return;
-      if (e.key === 'ArrowLeft') { e.preventDefault(); emblaApi?.scrollPrev(); }
-      if (e.key === 'ArrowRight') { e.preventDefault(); emblaApi?.scrollNext(); }
+
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        const next = Math.min(currentIndex + 1, buffer.length - 1);
+        if (next !== currentIndex) {
+          onIndexChange(next); // colors update now
+          emblaApi.scrollTo(next); // photo slides in parallel
+        }
+      }
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const prev = Math.max(currentIndex - 1, 0);
+        if (prev !== currentIndex) {
+          onIndexChange(prev);
+          emblaApi.scrollTo(prev);
+        }
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [emblaApi]);
+  }, [emblaApi, currentIndex, buffer.length, onIndexChange]);
 
   const photo = buffer[currentIndex];
 
@@ -123,7 +123,6 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange }: PhotoPanelPr
         </div>
       </div>
 
-      {/* Attribution */}
       {photo && (
         <div className="absolute bottom-3 left-3 right-3">
           <div className="text-white/50 text-[10px] font-mono drop-shadow-sm">
