@@ -161,11 +161,13 @@ export function ColorShift() {
     });
   }, []);
 
-  // Preload thumb images (tiny, ~2KB each) for instant carousel
+  // Preload thumb + tiny images for instant carousel
   const preloadThumbs = useCallback((photos: PhotoData[]) => {
     photos.forEach(p => {
-      const img = new Image();
-      img.src = p.thumbUrl;
+      const tiny = new Image();
+      tiny.src = p.tinyUrl;
+      const thumb = new Image();
+      thumb.src = p.thumbUrl;
     });
   }, []);
 
@@ -255,15 +257,56 @@ export function ColorShift() {
   const onDragStart = useCallback(() => { isDraggingRef.current = true; }, []);
   const onDragEnd = useCallback(() => { isDraggingRef.current = false; }, []);
 
+  // Re-extract colors when navigating photos while overlay is closed
+  const navigatePhotoColors = useCallback((direction: 'prev' | 'next') => {
+    if (photoBuffer.length === 0) {
+      // No photos loaded — generate random colors
+      generate();
+      return;
+    }
+
+    const newIndex = direction === 'prev'
+      ? Math.max(0, photoIndex - 1)
+      : Math.min(photoBuffer.length - 1, photoIndex + 1);
+
+    if (newIndex === photoIndex && direction === 'next') {
+      // At end of buffer, just generate random
+      generate();
+      return;
+    }
+
+    handlePhotoIndexChange(newIndex);
+
+    // Extract colors from the new photo's data using Unsplash's dominant color
+    // Full extraction happens when the overlay is open; here we use a quick approximation
+    const targetPhoto = photoBuffer[newIndex];
+    if (targetPhoto) {
+      // Use the photo's dominant color as background, bump foreground for contrast
+      const safeFg = bumpToThreshold(targetPhoto.color, fgHex, 4.5, contrastAlgorithm);
+      setBgHex(targetPhoto.color);
+      setFgHex(safeFg);
+    }
+  }, [photoBuffer, photoIndex, generate, handlePhotoIndexChange, fgHex, contrastAlgorithm]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' && target !== specimenInputRef.current) return;
+      // Don't handle arrows when photo overlay is open (it has its own handler)
+      if (isPhotoFullScreen) return;
 
       if (e.code === 'Space' && target !== specimenInputRef.current) {
         e.preventDefault();
         generate();
+      }
+      if (e.key === 'ArrowLeft' && target !== specimenInputRef.current) {
+        e.preventDefault();
+        navigatePhotoColors('prev');
+      }
+      if (e.key === 'ArrowRight' && target !== specimenInputRef.current) {
+        e.preventDefault();
+        navigatePhotoColors('next');
       }
       if ((e.key === 's' || e.key === 'S') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) {
         e.preventDefault();
@@ -280,7 +323,7 @@ export function ColorShift() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [generate, swap, toggleTheme, handleLoadPhoto]);
+  }, [generate, swap, toggleTheme, handleLoadPhoto, navigatePhotoColors, isPhotoFullScreen]);
 
   return (
     <div

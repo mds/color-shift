@@ -6,10 +6,17 @@ function mapPhoto(photo: Record<string, unknown>) {
   const userLinks = user.links as Record<string, string>;
   const links = photo.links as Record<string, string>;
 
+  // Build a tiny 32px URL for pixelated mosaic placeholder
+  const rawUrl = urls.raw as string;
+  const tinyUrl = rawUrl.includes('?')
+    ? `${rawUrl}&w=32&q=50`
+    : `${rawUrl}?w=32&q=50`;
+
   return {
     id: photo.id as string,
     url: urls.regular,
     thumbUrl: urls.thumb,
+    tinyUrl,
     color: photo.color as string,
     photographer: user.name as string,
     photographerUrl: userLinks.html,

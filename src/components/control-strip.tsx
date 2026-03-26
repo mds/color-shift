@@ -14,6 +14,7 @@ export interface PhotoData {
   id: string;
   url: string;
   thumbUrl: string;
+  tinyUrl: string;
   color: string;
   photographer: string;
   photographerUrl: string;

@@ -7,24 +7,38 @@ import { extractContrastPair } from '@/lib/color-engine';
 import type { PhotoData } from './control-strip';
 import type { ContrastAlgorithm } from '@/lib/color-engine';
 
-// ── Progressive Image ─────────────────────────────────────────────────
+// ── Progressive Image (3-layer: pixel mosaic → thumb → full) ──────────
 
 function ProgressiveImage({
-  thumbUrl, fullUrl, alt, color, isCurrent, onFullLoaded,
+  tinyUrl, thumbUrl, fullUrl, alt, color, isCurrent, onFullLoaded,
 }: {
-  thumbUrl: string; fullUrl: string; alt: string; color: string;
+  tinyUrl: string; thumbUrl: string; fullUrl: string; alt: string; color: string;
   isCurrent: boolean; onFullLoaded: (img: HTMLImageElement) => void;
 }) {
+  const [thumbReady, setThumbReady] = useState(false);
   const [fullReady, setFullReady] = useState(false);
   const fullRef = useRef<HTMLImageElement>(null);
 
   return (
     <div className="relative w-full h-full" style={{ backgroundColor: color }}>
+      {/* Layer 1: Tiny 32px image with pixelated rendering = instant mosaic grid */}
+      <img
+        src={tinyUrl} alt=""
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${thumbReady ? 'opacity-0' : 'opacity-100'}`}
+        style={{ imageRendering: 'pixelated' }}
+      />
+
+      {/* Layer 2: Thumb (200px) with slight blur — crossfades over mosaic */}
       <img
         src={thumbUrl} alt=""
-        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${fullReady ? 'opacity-0' : 'opacity-100'}`}
-        style={{ filter: 'blur(20px)', transform: 'scale(1.1)' }}
+        onLoad={() => setThumbReady(true)}
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${
+          fullReady ? 'opacity-0' : thumbReady ? 'opacity-100' : 'opacity-0'
+        }`}
+        style={{ filter: 'blur(8px)', transform: 'scale(1.02)' }}
       />
+
+      {/* Layer 3: Full res — crossfades over thumb */}
       <img
         ref={fullRef} src={fullUrl} alt={alt} crossOrigin="anonymous"
         onLoad={() => {
@@ -242,7 +256,8 @@ export function PhotoOverlay({
           {buffer.map((p, i) => (
             <div key={p.id + '-' + i} data-slide className="flex-[0_0_100%] min-w-0 h-full">
               <ProgressiveImage
-                thumbUrl={p.thumbUrl} fullUrl={p.url} alt={p.alt} color={p.color}
+                tinyUrl={p.tinyUrl} thumbUrl={p.thumbUrl} fullUrl={p.url}
+                alt={p.alt} color={p.color}
                 isCurrent={i === currentIndex} onFullLoaded={handleFullLoaded}
               />
             </div>
@@ -250,13 +265,13 @@ export function PhotoOverlay({
         </div>
       </div>
 
-      {/* Current photo's thumb as the initial visible content during animation */}
+      {/* Pixelated mosaic during grow animation */}
       {isAnimatingIn && photo && (
         <img
-          src={photo.thumbUrl}
+          src={photo.tinyUrl}
           alt=""
           className="absolute inset-0 w-full h-full object-cover"
-          style={{ filter: 'blur(10px)', transform: 'scale(1.05)' }}
+          style={{ imageRendering: 'pixelated' }}
         />
       )}
 
