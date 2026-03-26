@@ -38,7 +38,7 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange }: PhotoPanelPr
   const rafRef = useRef<number>(0);
   const isAnimating = useRef(false);
 
-  const PIXEL_SIZE = 12;
+  const PIXEL_SIZE = 24;
   const TRANSITION_DURATION = 350; // ms
 
   // Load an image and cache it
