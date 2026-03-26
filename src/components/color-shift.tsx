@@ -7,7 +7,6 @@ import {
   hsbToHex,
   oklchToHex,
   getContrastResult,
-  generateRandomPair,
   bumpToThreshold,
   nearestThreshold,
   nextThresholdUp,
@@ -25,8 +24,14 @@ import { Specimen } from './specimen';
 import { ControlStrip, type PhotoData } from './control-strip';
 import { PhotoOverlay } from './photo-overlay';
 
+// Store extracted colors per photo so they stay synced
+interface PhotoColors {
+  bg: string;
+  fg: string;
+}
+
 export function ColorShift() {
-  // Color state
+  // Color state — always derived from photos
   const [bgHex, setBgHex] = useState('#1A1A2E');
   const [fgHex, setFgHex] = useState('#E8D5B7');
   const [colorFormat, setColorFormat] = useState<ColorFormat>('HEX');
@@ -35,15 +40,20 @@ export function ColorShift() {
   const [sliderMode, setSliderMode] = useState<SliderMode>('OKLCH');
   const [contrastAlgorithm, setContrastAlgorithm] = useState<ContrastAlgorithm>('WCAG2');
 
-  // Photo state — buffer-based carousel
+  // Photo state — photos are the source of truth for colors
   const [photoBuffer, setPhotoBuffer] = useState<PhotoData[]>([]);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [isPhotoFullScreen, setIsPhotoFullScreen] = useState(false);
   const [isPhotoLoading, setIsPhotoLoading] = useState(false);
   const isFetchingMore = useRef(false);
+  const hasInitialLoad = useRef(false);
+
+  // Cache extracted colors per photo id
+  const colorCache = useRef<Map<string, PhotoColors>>(new Map());
+
   const photoData = photoBuffer.length > 0 ? photoBuffer[photoIndex] ?? null : null;
 
-  // Drag ref (not state — avoids re-renders)
+  // Drag ref
   const isDraggingRef = useRef(false);
 
   // Refs for GSAP targeting
@@ -61,7 +71,7 @@ export function ColorShift() {
   // GSAP context
   useGSAP(() => {}, { scope: rootRef });
 
-  // Animate colors via GSAP instead of CSS transitions
+  // Animate colors via GSAP
   const prevBg = useRef(bgHex);
   const prevFg = useRef(fgHex);
 
@@ -88,18 +98,131 @@ export function ColorShift() {
     prevFg.current = fgHex;
   }, [bgHex, fgHex]);
 
-  // Color handlers
-  const generate = useCallback(() => {
-    const pair = generateRandomPair();
-    setBgHex(pair.bg);
-    setFgHex(pair.fg);
+  // ── Apply colors from a photo (use cache if available, else Unsplash dominant) ──
+
+  const applyPhotoColors = useCallback((photo: PhotoData) => {
+    const cached = colorCache.current.get(photo.id);
+    if (cached) {
+      setBgHex(cached.bg);
+      setFgHex(cached.fg);
+    } else {
+      // Use Unsplash dominant color as bg, derive a contrast-safe fg
+      const safeFg = bumpToThreshold(photo.color, '#FFFFFF', 4.5, 'WCAG2');
+      setBgHex(photo.color);
+      setFgHex(safeFg);
+    }
   }, []);
 
-  const swap = useCallback(() => {
-    setBgHex(prev => {
-      setFgHex(bgHex);
-      return fgHex;
+  // ── Photo fetching ──
+
+  const fetchPhotos = useCallback(async (count: number): Promise<PhotoData[]> => {
+    const res = await fetch(`/api/photos?count=${count}`);
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      console.warn('Photo API:', data.error ?? 'Add UNSPLASH_ACCESS_KEY to .env.local');
+      return [];
+    }
+    return data as PhotoData[];
+  }, []);
+
+  const preloadImages = useCallback((photos: PhotoData[]) => {
+    photos.forEach(p => { const img = new Image(); img.src = p.url; });
+  }, []);
+
+  const preloadThumbs = useCallback((photos: PhotoData[]) => {
+    photos.forEach(p => {
+      const tiny = new Image(); tiny.src = p.tinyUrl;
+      const thumb = new Image(); thumb.src = p.thumbUrl;
     });
+  }, []);
+
+  const dedupePhotos = useCallback((existing: PhotoData[], incoming: PhotoData[]): PhotoData[] => {
+    const ids = new Set(existing.map(p => p.id));
+    return incoming.filter(p => !ids.has(p.id));
+  }, []);
+
+  const maybeRefill = useCallback(async (currentIdx: number, buffer: PhotoData[]) => {
+    if (isFetchingMore.current) return;
+    const remaining = buffer.length - currentIdx - 1;
+    if (remaining <= 3) {
+      isFetchingMore.current = true;
+      const more = await fetchPhotos(10);
+      const unique = dedupePhotos(buffer, more);
+      if (unique.length > 0) {
+        preloadThumbs(unique);
+        preloadImages(unique.slice(0, 3));
+        setPhotoBuffer(prev => [...prev, ...dedupePhotos(prev, unique)]);
+      }
+      isFetchingMore.current = false;
+    }
+  }, [fetchPhotos, preloadImages, preloadThumbs, dedupePhotos]);
+
+  // ── Load photos (initial + generate) ──
+
+  const loadPhotos = useCallback(async (showFullScreen: boolean) => {
+    setIsPhotoLoading(true);
+    const photos = await fetchPhotos(10);
+    if (photos.length === 0) {
+      setIsPhotoLoading(false);
+      return;
+    }
+    preloadThumbs(photos);
+    preloadImages(photos.slice(0, 3));
+    setPhotoBuffer(photos);
+    setPhotoIndex(0);
+    applyPhotoColors(photos[0]);
+    if (showFullScreen) setIsPhotoFullScreen(true);
+    setIsPhotoLoading(false);
+  }, [fetchPhotos, preloadImages, preloadThumbs, applyPhotoColors]);
+
+  // Auto-load photos on mount
+  useEffect(() => {
+    if (hasInitialLoad.current) return;
+    hasInitialLoad.current = true;
+    loadPhotos(false);
+  }, [loadPhotos]);
+
+  // ── Navigation ──
+
+  const handlePhotoIndexChange = useCallback((newIndex: number) => {
+    setPhotoIndex(newIndex);
+    const photo = photoBuffer[newIndex];
+    if (photo) applyPhotoColors(photo);
+    maybeRefill(newIndex, photoBuffer);
+    const ahead = photoBuffer.slice(newIndex + 1, newIndex + 3);
+    preloadImages(ahead);
+  }, [photoBuffer, applyPhotoColors, maybeRefill, preloadImages]);
+
+  // When vibrant extraction completes, cache the result and apply
+  const handlePhotoColorsExtracted = useCallback((newBg: string, newFg: string) => {
+    setBgHex(newBg);
+    setFgHex(newFg);
+    // Cache for this photo
+    if (photoData) {
+      colorCache.current.set(photoData.id, { bg: newBg, fg: newFg });
+    }
+  }, [photoData]);
+
+  const handlePhotoCollapse = useCallback(() => {
+    setIsPhotoFullScreen(false);
+  }, []);
+
+  const handlePhotoOpen = useCallback(() => {
+    setIsPhotoFullScreen(true);
+  }, []);
+
+  // Generate = load fresh batch of photos
+  const generate = useCallback(() => {
+    loadPhotos(false);
+  }, [loadPhotos]);
+
+  // ── Color manipulation (sliders, input, swap still work on current colors) ──
+
+  const swap = useCallback(() => {
+    const tempBg = bgHex;
+    const tempFg = fgHex;
+    setBgHex(tempFg);
+    setFgHex(tempBg);
   }, [bgHex, fgHex]);
 
   const updateBgHsb = useCallback((hsb: HSB) => setBgHex(hsbToHex(hsb)), []);
@@ -141,97 +264,8 @@ export function ColorShift() {
     setFgHex(bumpToThreshold(bgHex, fgHex, target, contrastAlgorithm));
   }, [bgHex, fgHex, contrastAlgorithm]);
 
-  // Photo handlers
-  // Fetch a batch of photos and append to buffer
-  const fetchPhotos = useCallback(async (count: number): Promise<PhotoData[]> => {
-    const res = await fetch(`/api/photos?count=${count}`);
-    const data = await res.json();
-    if (!res.ok || data.error) {
-      console.warn('Photo API:', data.error ?? 'Add UNSPLASH_ACCESS_KEY to .env.local');
-      return [];
-    }
-    return data as PhotoData[];
-  }, []);
+  // ── Export ──
 
-  // Preload full-res images into browser cache
-  const preloadImages = useCallback((photos: PhotoData[]) => {
-    photos.forEach(p => {
-      const img = new Image();
-      img.src = p.url;
-    });
-  }, []);
-
-  // Preload thumb + tiny images for instant carousel
-  const preloadThumbs = useCallback((photos: PhotoData[]) => {
-    photos.forEach(p => {
-      const tiny = new Image();
-      tiny.src = p.tinyUrl;
-      const thumb = new Image();
-      thumb.src = p.thumbUrl;
-    });
-  }, []);
-
-  // Deduplicate photos by id
-  const dedupePhotos = useCallback((existing: PhotoData[], incoming: PhotoData[]): PhotoData[] => {
-    const ids = new Set(existing.map(p => p.id));
-    return incoming.filter(p => !ids.has(p.id));
-  }, []);
-
-  // Prefetch more photos when nearing the end of the buffer
-  const maybeRefill = useCallback(async (currentIdx: number, buffer: PhotoData[]) => {
-    if (isFetchingMore.current) return;
-    const remaining = buffer.length - currentIdx - 1;
-    if (remaining <= 3) {
-      isFetchingMore.current = true;
-      const more = await fetchPhotos(10);
-      const unique = dedupePhotos(buffer, more);
-      if (unique.length > 0) {
-        preloadThumbs(unique);
-        preloadImages(unique.slice(0, 3));
-        setPhotoBuffer(prev => [...prev, ...dedupePhotos(prev, unique)]);
-      }
-      isFetchingMore.current = false;
-    }
-  }, [fetchPhotos, preloadImages, preloadThumbs, dedupePhotos]);
-
-  // Initial photo load — fetch 10, preload all thumbs + first 3 full-res
-  const handleLoadPhoto = useCallback(async () => {
-    setIsPhotoLoading(true);
-    const photos = await fetchPhotos(10);
-    if (photos.length === 0) {
-      setIsPhotoLoading(false);
-      return;
-    }
-    preloadThumbs(photos);
-    preloadImages(photos.slice(0, 3));
-    setPhotoBuffer(photos);
-    setPhotoIndex(0);
-    setIsPhotoFullScreen(true);
-    setIsPhotoLoading(false);
-  }, [fetchPhotos, preloadImages, preloadThumbs]);
-
-  const handlePhotoIndexChange = useCallback((newIndex: number) => {
-    setPhotoIndex(newIndex);
-    maybeRefill(newIndex, photoBuffer);
-    // Preload full-res for the next 2 photos ahead
-    const ahead = photoBuffer.slice(newIndex + 1, newIndex + 3);
-    preloadImages(ahead);
-  }, [photoBuffer, maybeRefill, preloadImages]);
-
-  const handlePhotoColorsExtracted = useCallback((newBg: string, newFg: string) => {
-    setBgHex(newBg);
-    setFgHex(newFg);
-  }, []);
-
-  const handlePhotoCollapse = useCallback(() => {
-    setIsPhotoFullScreen(false);
-  }, []);
-
-  const handlePhotoOpen = useCallback(() => {
-    setIsPhotoFullScreen(true);
-  }, []);
-
-  // Export
   const photoCredit = photoData ? {
     photographer: photoData.photographer,
     photoUrl: photoData.photoUrl,
@@ -257,43 +291,25 @@ export function ColorShift() {
   const onDragStart = useCallback(() => { isDraggingRef.current = true; }, []);
   const onDragEnd = useCallback(() => { isDraggingRef.current = false; }, []);
 
-  // Re-extract colors when navigating photos while overlay is closed
-  const navigatePhotoColors = useCallback((direction: 'prev' | 'next') => {
-    if (photoBuffer.length === 0) {
-      // No photos loaded — generate random colors
-      generate();
-      return;
-    }
+  // ── Arrow key navigation — always photo-driven ──
+
+  const navigatePhotos = useCallback((direction: 'prev' | 'next') => {
+    if (photoBuffer.length === 0) return;
 
     const newIndex = direction === 'prev'
       ? Math.max(0, photoIndex - 1)
       : Math.min(photoBuffer.length - 1, photoIndex + 1);
 
-    if (newIndex === photoIndex && direction === 'next') {
-      // At end of buffer, just generate random
-      generate();
-      return;
+    if (newIndex !== photoIndex) {
+      handlePhotoIndexChange(newIndex);
     }
-
-    handlePhotoIndexChange(newIndex);
-
-    // Extract colors from the new photo's data using Unsplash's dominant color
-    // Full extraction happens when the overlay is open; here we use a quick approximation
-    const targetPhoto = photoBuffer[newIndex];
-    if (targetPhoto) {
-      // Use the photo's dominant color as background, bump foreground for contrast
-      const safeFg = bumpToThreshold(targetPhoto.color, fgHex, 4.5, contrastAlgorithm);
-      setBgHex(targetPhoto.color);
-      setFgHex(safeFg);
-    }
-  }, [photoBuffer, photoIndex, generate, handlePhotoIndexChange, fgHex, contrastAlgorithm]);
+  }, [photoBuffer, photoIndex, handlePhotoIndexChange]);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' && target !== specimenInputRef.current) return;
-      // Don't handle arrows when photo overlay is open (it has its own handler)
       if (isPhotoFullScreen) return;
 
       if (e.code === 'Space' && target !== specimenInputRef.current) {
@@ -302,11 +318,11 @@ export function ColorShift() {
       }
       if (e.key === 'ArrowLeft' && target !== specimenInputRef.current) {
         e.preventDefault();
-        navigatePhotoColors('prev');
+        navigatePhotos('prev');
       }
       if (e.key === 'ArrowRight' && target !== specimenInputRef.current) {
         e.preventDefault();
-        navigatePhotoColors('next');
+        navigatePhotos('next');
       }
       if ((e.key === 's' || e.key === 'S') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) {
         e.preventDefault();
@@ -318,12 +334,12 @@ export function ColorShift() {
       }
       if ((e.key === 'p' || e.key === 'P') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) {
         e.preventDefault();
-        handleLoadPhoto();
+        handlePhotoOpen();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [generate, swap, toggleTheme, handleLoadPhoto, navigatePhotoColors, isPhotoFullScreen]);
+  }, [generate, swap, toggleTheme, handlePhotoOpen, navigatePhotos, isPhotoFullScreen]);
 
   return (
     <div
@@ -379,7 +395,7 @@ export function ColorShift() {
         onUpdateFgOklch={updateFgOklch}
         onCycleFormat={cycleFormat}
         onGenerate={generate}
-        onLoadPhoto={handleLoadPhoto}
+        onLoadPhoto={() => loadPhotos(true)}
         onPhotoOpen={handlePhotoOpen}
         onCopy={copyExport}
         onDownload={downloadExport}
