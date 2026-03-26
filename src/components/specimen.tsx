@@ -23,13 +23,13 @@ export const Specimen = forwardRef<HTMLDivElement, SpecimenProps>(
           type="text"
           value={text}
           onChange={e => onTextChange(e.target.value)}
-          className="specimen-input font-specimen bg-transparent border-none outline-none text-center w-full max-w-full px-8
+          className="specimen-input bg-transparent border-none outline-none text-center w-full max-w-full px-8
             text-[80px] sm:text-[120px] md:text-[160px] lg:text-[200px]
             leading-none tracking-tight"
           style={{
             color: fgHex,
             caretColor: fgHex,
-            fontFeatureSettings: '"calt" 1, "liga" 1',
+            fontFamily: 'var(--font-departure-mono), monospace',
           }}
           placeholder="Aa"
           spellCheck={false}
