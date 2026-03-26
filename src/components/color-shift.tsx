@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { gsap, useGSAP } from '@/lib/gsap-config';
 import {
   hexToColorData,
@@ -24,23 +24,17 @@ import { Specimen } from './specimen';
 import { ControlStrip, type PhotoData } from './control-strip';
 import { PhotoOverlay } from './photo-overlay';
 
-// Store extracted colors per photo so they stay synced
-interface PhotoColors {
-  bg: string;
-  fg: string;
-}
+interface PhotoColors { bg: string; fg: string; }
 
 export function ColorShift() {
-  // Color state — always derived from photos
-  const [bgHex, setBgHex] = useState('#1A1A2E');
-  const [fgHex, setFgHex] = useState('#E8D5B7');
+  // ── UI state ──
   const [colorFormat, setColorFormat] = useState<ColorFormat>('HEX');
   const [specimenText, setSpecimenText] = useState('Aa');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [sliderMode, setSliderMode] = useState<SliderMode>('OKLCH');
   const [contrastAlgorithm, setContrastAlgorithm] = useState<ContrastAlgorithm>('WCAG2');
 
-  // Photo state — photos are the source of truth for colors
+  // ── Photo state — THE source of truth ──
   const [photoBuffer, setPhotoBuffer] = useState<PhotoData[]>([]);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [isPhotoFullScreen, setIsPhotoFullScreen] = useState(false);
@@ -48,31 +42,52 @@ export function ColorShift() {
   const isFetchingMore = useRef(false);
   const hasInitialLoad = useRef(false);
 
-  // Cache extracted colors per photo id
-  const colorCache = useRef<Map<string, PhotoColors>>(new Map());
-  const [extractedIds, setExtractedIds] = useState<Set<string>>(new Set());
+  // ── Color cache: photoId → {bg, fg} ──
+  // This is the ONLY place colors are stored per-photo.
+  // bgHex/fgHex are derived from this cache + current photoIndex.
+  const [colorMap, setColorMap] = useState<Map<string, PhotoColors>>(new Map());
 
-  const photoData = photoBuffer.length > 0 ? photoBuffer[photoIndex] ?? null : null;
+  // ── Manual color overrides (from sliders, swap, bump) ──
+  // These override the photo colors temporarily until the photo changes.
+  const [manualColors, setManualColors] = useState<PhotoColors | null>(null);
 
-  // Drag ref
+  const photoData = photoBuffer[photoIndex] ?? null;
+
+  // ── Derive bg/fg from photo + cache + manual override ──
+  const colors = useMemo((): PhotoColors => {
+    if (manualColors) return manualColors;
+    if (!photoData) return { bg: '#1A1A2E', fg: '#E8D5B7' };
+    const cached = colorMap.get(photoData.id);
+    if (cached) return cached;
+    const safeFg = bumpToThreshold(photoData.color, '#FFFFFF', 4.5, 'WCAG2');
+    return { bg: photoData.color, fg: safeFg };
+  }, [photoData, colorMap, manualColors]);
+
+  const bgHex = colors.bg;
+  const fgHex = colors.fg;
+
+  // Clear manual override when photo changes
+  useEffect(() => {
+    setManualColors(null);
+  }, [photoIndex]);
+
+  // ── Refs ──
   const isDraggingRef = useRef(false);
-
-  // Refs for GSAP targeting
   const rootRef = useRef<HTMLDivElement>(null);
   const specimenRef = useRef<HTMLDivElement>(null);
   const specimenInputRef = useRef<HTMLInputElement>(null);
   const photoThumbRef = useRef<HTMLButtonElement>(null);
 
-  // Derived values
+  // ── Derived values ──
   const bg = hexToColorData(bgHex);
   const fg = hexToColorData(fgHex);
   const contrast = getContrastResult(bgHex, fgHex, contrastAlgorithm);
   const activeThreshold = nearestThreshold(contrast.score, contrastAlgorithm);
+  const extractedIds = useMemo(() => new Set(colorMap.keys()), [colorMap]);
 
-  // GSAP context
+  // ── GSAP ──
   useGSAP(() => {}, { scope: rootRef });
 
-  // Animate colors via GSAP
   const prevBg = useRef(bgHex);
   const prevFg = useRef(fgHex);
 
@@ -82,37 +97,17 @@ export function ColorShift() {
       prevFg.current = fgHex;
       return;
     }
-
     if (bgHex !== prevBg.current && rootRef.current && specimenRef.current) {
       gsap.to(rootRef.current, { backgroundColor: bgHex, duration: 0.4, ease: 'power2.out' });
       gsap.to(specimenRef.current, { backgroundColor: bgHex, duration: 0.4, ease: 'power2.out' });
     }
-
     if (fgHex !== prevFg.current && specimenRef.current) {
       const input = specimenRef.current.querySelector('input');
-      if (input) {
-        gsap.to(input, { color: fgHex, duration: 0.4, ease: 'power2.out' });
-      }
+      if (input) gsap.to(input, { color: fgHex, duration: 0.4, ease: 'power2.out' });
     }
-
     prevBg.current = bgHex;
     prevFg.current = fgHex;
   }, [bgHex, fgHex]);
-
-  // ── Apply colors from a photo (use cache if available, else Unsplash dominant) ──
-
-  const applyPhotoColors = useCallback((photo: PhotoData) => {
-    const cached = colorCache.current.get(photo.id);
-    if (cached) {
-      setBgHex(cached.bg);
-      setFgHex(cached.fg);
-    } else {
-      // Use Unsplash dominant color as bg, derive a contrast-safe fg
-      const safeFg = bumpToThreshold(photo.color, '#FFFFFF', 4.5, 'WCAG2');
-      setBgHex(photo.color);
-      setFgHex(safeFg);
-    }
-  }, []);
 
   // ── Photo fetching ──
 
@@ -144,8 +139,7 @@ export function ColorShift() {
 
   const maybeRefill = useCallback(async (currentIdx: number, buffer: PhotoData[]) => {
     if (isFetchingMore.current) return;
-    const remaining = buffer.length - currentIdx - 1;
-    if (remaining <= 3) {
+    if (buffer.length - currentIdx - 1 <= 3) {
       isFetchingMore.current = true;
       const more = await fetchPhotos(10);
       const unique = dedupePhotos(buffer, more);
@@ -158,123 +152,115 @@ export function ColorShift() {
     }
   }, [fetchPhotos, preloadImages, preloadThumbs, dedupePhotos]);
 
-  // ── Load photos (initial + generate) ──
+  // ── Load fresh batch ──
 
   const loadPhotos = useCallback(async (showFullScreen: boolean) => {
     setIsPhotoLoading(true);
     const photos = await fetchPhotos(10);
-    if (photos.length === 0) {
-      setIsPhotoLoading(false);
-      return;
-    }
+    if (photos.length === 0) { setIsPhotoLoading(false); return; }
     preloadThumbs(photos);
     preloadImages(photos.slice(0, 3));
     setPhotoBuffer(photos);
     setPhotoIndex(0);
-    applyPhotoColors(photos[0]);
+    setManualColors(null);
     if (showFullScreen) setIsPhotoFullScreen(true);
     setIsPhotoLoading(false);
-  }, [fetchPhotos, preloadImages, preloadThumbs, applyPhotoColors]);
+  }, [fetchPhotos, preloadImages, preloadThumbs]);
 
-  // Auto-load photos on mount
+  // Auto-load on mount
   useEffect(() => {
     if (hasInitialLoad.current) return;
     hasInitialLoad.current = true;
     loadPhotos(false);
   }, [loadPhotos]);
 
-  // ── Navigation ──
+  // ── Navigation — only thing that changes the photo ──
 
   const handlePhotoIndexChange = useCallback((newIndex: number) => {
     setPhotoIndex(newIndex);
-    const photo = photoBuffer[newIndex];
-    if (photo) applyPhotoColors(photo);
+    // manualColors cleared by the useEffect above
     maybeRefill(newIndex, photoBuffer);
-    const ahead = photoBuffer.slice(newIndex + 1, newIndex + 3);
-    preloadImages(ahead);
-  }, [photoBuffer, applyPhotoColors, maybeRefill, preloadImages]);
+    preloadImages(photoBuffer.slice(newIndex + 1, newIndex + 3));
+  }, [photoBuffer, maybeRefill, preloadImages]);
 
-  // When vibrant extraction completes, cache the result and apply
-  // Only update colors if they actually changed (prevents shifts on overlay open)
+  // ── Vibrant extraction callback — caches colors for the current photo ──
+
   const handlePhotoColorsExtracted = useCallback((newBg: string, newFg: string) => {
-    setBgHex(prev => prev === newBg ? prev : newBg);
-    setFgHex(prev => prev === newFg ? prev : newFg);
-    if (photoData) {
-      colorCache.current.set(photoData.id, { bg: newBg, fg: newFg });
-      setExtractedIds(prev => {
-        if (prev.has(photoData.id)) return prev;
-        return new Set(prev).add(photoData.id);
-      });
-    }
+    if (!photoData) return;
+    setColorMap(prev => {
+      if (prev.get(photoData.id)?.bg === newBg && prev.get(photoData.id)?.fg === newFg) return prev;
+      const next = new Map(prev);
+      next.set(photoData.id, { bg: newBg, fg: newFg });
+      return next;
+    });
+    // Clear manual override so derived colors pick up the extraction
+    setManualColors(null);
   }, [photoData]);
 
-  const handlePhotoCollapse = useCallback(() => {
-    setIsPhotoFullScreen(false);
-  }, []);
+  // ── Open/close overlay — does NOT change colors ──
 
-  const handlePhotoOpen = useCallback(() => {
-    setIsPhotoFullScreen(true);
-  }, []);
+  const handlePhotoOpen = useCallback(() => setIsPhotoFullScreen(true), []);
+  const handlePhotoCollapse = useCallback(() => setIsPhotoFullScreen(false), []);
 
-  // Generate = load fresh batch of photos
-  const generate = useCallback(() => {
-    loadPhotos(false);
-  }, [loadPhotos]);
+  // ── Generate = fresh batch ──
+  const generate = useCallback(() => loadPhotos(false), [loadPhotos]);
 
-  // ── Color manipulation (sliders, input, swap still work on current colors) ──
+  // ── Manual color manipulation (sliders, input, swap, bump) ──
+  // These set manualColors which overrides photo-derived colors
+  // until the photo changes.
+
+  const setManualBg = useCallback((newBg: string) => {
+    setManualColors(prev => ({ bg: newBg, fg: prev?.fg ?? fgHex }));
+  }, [fgHex]);
+
+  const setManualFg = useCallback((newFg: string) => {
+    setManualColors(prev => ({ bg: prev?.bg ?? bgHex, fg: newFg }));
+  }, [bgHex]);
 
   const swap = useCallback(() => {
-    const tempBg = bgHex;
-    const tempFg = fgHex;
-    setBgHex(tempFg);
-    setFgHex(tempBg);
+    setManualColors({ bg: fgHex, fg: bgHex });
   }, [bgHex, fgHex]);
 
-  const updateBgHsb = useCallback((hsb: HSB) => setBgHex(hsbToHex(hsb)), []);
-  const updateFgHsb = useCallback((hsb: HSB) => setFgHex(hsbToHex(hsb)), []);
-  const updateBgOklch = useCallback((oklch: OklchValues) => setBgHex(oklchToHex(oklch)), []);
-  const updateFgOklch = useCallback((oklch: OklchValues) => setFgHex(oklchToHex(oklch)), []);
+  const updateBgHsb = useCallback((hsb: HSB) => setManualBg(hsbToHex(hsb)), [setManualBg]);
+  const updateFgHsb = useCallback((hsb: HSB) => setManualFg(hsbToHex(hsb)), [setManualFg]);
+  const updateBgOklch = useCallback((oklch: OklchValues) => setManualBg(oklchToHex(oklch)), [setManualBg]);
+  const updateFgOklch = useCallback((oklch: OklchValues) => setManualFg(oklchToHex(oklch)), [setManualFg]);
+
+  const handleBgInput = useCallback((value: string) => {
+    const hex = parseAnyColor(value);
+    if (hex) setManualBg(hex);
+  }, [setManualBg]);
+
+  const handleFgInput = useCallback((value: string) => {
+    const hex = parseAnyColor(value);
+    if (hex) setManualFg(hex);
+  }, [setManualFg]);
+
+  const bumpUp = useCallback(() => {
+    const target = nextThresholdUp(contrast.score, contrastAlgorithm);
+    if (target) setManualFg(bumpToThreshold(bgHex, fgHex, target, contrastAlgorithm));
+  }, [bgHex, fgHex, contrast.score, contrastAlgorithm, setManualFg]);
+
+  const bumpDown = useCallback(() => {
+    const target = nextThresholdDown(contrast.score, contrastAlgorithm);
+    if (target) setManualFg(bumpToThreshold(bgHex, fgHex, target, contrastAlgorithm));
+  }, [bgHex, fgHex, contrast.score, contrastAlgorithm, setManualFg]);
+
+  const bumpTo = useCallback((target: number) => {
+    setManualFg(bumpToThreshold(bgHex, fgHex, target, contrastAlgorithm));
+  }, [bgHex, fgHex, contrastAlgorithm, setManualFg]);
 
   const toggleSliderMode = useCallback(() => setSliderMode(m => m === 'HSB' ? 'OKLCH' : 'HSB'), []);
   const toggleContrastAlgorithm = useCallback(() => setContrastAlgorithm(a => a === 'WCAG2' ? 'APCA' : 'WCAG2'), []);
   const toggleTheme = useCallback(() => setTheme(t => t === 'dark' ? 'light' : 'dark'), []);
-
   const cycleFormat = useCallback(() => {
     const formats: ColorFormat[] = ['HEX', 'RGB', 'HSL', 'HSB', 'OKLCH'];
     setColorFormat(f => formats[(formats.indexOf(f) + 1) % formats.length]);
   }, []);
 
-  const handleBgInput = useCallback((value: string) => {
-    const hex = parseAnyColor(value);
-    if (hex) setBgHex(hex);
-  }, []);
-
-  const handleFgInput = useCallback((value: string) => {
-    const hex = parseAnyColor(value);
-    if (hex) setFgHex(hex);
-  }, []);
-
-  // Contrast bumping
-  const bumpUp = useCallback(() => {
-    const target = nextThresholdUp(contrast.score, contrastAlgorithm);
-    if (target) setFgHex(bumpToThreshold(bgHex, fgHex, target, contrastAlgorithm));
-  }, [bgHex, fgHex, contrast.score, contrastAlgorithm]);
-
-  const bumpDown = useCallback(() => {
-    const target = nextThresholdDown(contrast.score, contrastAlgorithm);
-    if (target) setFgHex(bumpToThreshold(bgHex, fgHex, target, contrastAlgorithm));
-  }, [bgHex, fgHex, contrast.score, contrastAlgorithm]);
-
-  const bumpTo = useCallback((target: number) => {
-    setFgHex(bumpToThreshold(bgHex, fgHex, target, contrastAlgorithm));
-  }, [bgHex, fgHex, contrastAlgorithm]);
-
   // ── Export ──
 
-  const photoCredit = photoData ? {
-    photographer: photoData.photographer,
-    photoUrl: photoData.photoUrl,
-  } : undefined;
+  const photoCredit = photoData ? { photographer: photoData.photographer, photoUrl: photoData.photoUrl } : undefined;
 
   const copyExport = useCallback(async () => {
     const md = generateExportMarkdown(bg, fg, contrast, contrastAlgorithm, photoCredit);
@@ -286,131 +272,72 @@ export function ColorShift() {
     const blob = new Blob([md], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `color-shift-${bg.hex.slice(1)}-${fg.hex.slice(1)}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
+    a.href = url; a.download = `color-shift-${bg.hex.slice(1)}-${fg.hex.slice(1)}.md`;
+    a.click(); URL.revokeObjectURL(url);
   }, [bg, fg, contrast, contrastAlgorithm, photoCredit]);
 
-  // Drag handlers
+  // ── Drag ──
   const onDragStart = useCallback(() => { isDraggingRef.current = true; }, []);
   const onDragEnd = useCallback(() => { isDraggingRef.current = false; }, []);
 
-  // ── Arrow key navigation — always photo-driven ──
+  // ── Arrow keys — only change photoIndex ──
 
   const navigatePhotos = useCallback((direction: 'prev' | 'next') => {
     if (photoBuffer.length === 0) return;
-
     const newIndex = direction === 'prev'
       ? Math.max(0, photoIndex - 1)
       : Math.min(photoBuffer.length - 1, photoIndex + 1);
-
-    if (newIndex !== photoIndex) {
-      handlePhotoIndexChange(newIndex);
-    }
+    if (newIndex !== photoIndex) handlePhotoIndexChange(newIndex);
   }, [photoBuffer, photoIndex, handlePhotoIndexChange]);
 
-  // Keyboard shortcuts
+  // Keyboard
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' && target !== specimenInputRef.current) return;
       if (isPhotoFullScreen) return;
 
-      if (e.code === 'Space' && target !== specimenInputRef.current) {
-        e.preventDefault();
-        generate();
-      }
-      if (e.key === 'ArrowLeft' && target !== specimenInputRef.current) {
-        e.preventDefault();
-        navigatePhotos('prev');
-      }
-      if (e.key === 'ArrowRight' && target !== specimenInputRef.current) {
-        e.preventDefault();
-        navigatePhotos('next');
-      }
-      if ((e.key === 's' || e.key === 'S') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) {
-        e.preventDefault();
-        swap();
-      }
-      if ((e.key === 't' || e.key === 'T') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) {
-        e.preventDefault();
-        toggleTheme();
-      }
-      if ((e.key === 'p' || e.key === 'P') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) {
-        e.preventDefault();
-        handlePhotoOpen();
-      }
+      if (e.code === 'Space' && target !== specimenInputRef.current) { e.preventDefault(); generate(); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); navigatePhotos('prev'); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); navigatePhotos('next'); }
+      if ((e.key === 's' || e.key === 'S') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) { e.preventDefault(); swap(); }
+      if ((e.key === 't' || e.key === 'T') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) { e.preventDefault(); toggleTheme(); }
+      if ((e.key === 'p' || e.key === 'P') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) { e.preventDefault(); handlePhotoOpen(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [generate, swap, toggleTheme, handlePhotoOpen, navigatePhotos, isPhotoFullScreen]);
 
   return (
-    <div
-      ref={rootRef}
-      className="h-screen flex flex-col"
-      data-theme={theme}
-      style={{ backgroundColor: bgHex }}
-    >
+    <div ref={rootRef} className="h-screen flex flex-col" data-theme={theme} style={{ backgroundColor: bgHex }}>
       <Specimen
-        ref={specimenRef}
-        bgHex={bgHex}
-        fgHex={fgHex}
-        text={specimenText}
-        onTextChange={setSpecimenText}
-        inputRef={specimenInputRef}
+        ref={specimenRef} bgHex={bgHex} fgHex={fgHex}
+        text={specimenText} onTextChange={setSpecimenText} inputRef={specimenInputRef}
       />
 
       {isPhotoFullScreen && photoBuffer.length > 0 && (
         <PhotoOverlay
-          buffer={photoBuffer}
-          currentIndex={photoIndex}
-          contrastAlgorithm={contrastAlgorithm}
-          onColorsExtracted={handlePhotoColorsExtracted}
-          onIndexChange={handlePhotoIndexChange}
-          onCollapse={handlePhotoCollapse}
-          thumbRef={photoThumbRef}
-          extractedIds={extractedIds}
+          buffer={photoBuffer} currentIndex={photoIndex} contrastAlgorithm={contrastAlgorithm}
+          onColorsExtracted={handlePhotoColorsExtracted} onIndexChange={handlePhotoIndexChange}
+          onCollapse={handlePhotoCollapse} thumbRef={photoThumbRef} extractedIds={extractedIds}
         />
       )}
 
       <ControlStrip
-        bg={bg}
-        fg={fg}
-        bgHex={bgHex}
-        fgHex={fgHex}
-        contrast={contrast}
-        activeThreshold={activeThreshold}
-        theme={theme}
-        sliderMode={sliderMode}
-        contrastAlgorithm={contrastAlgorithm}
-        colorFormat={colorFormat}
-        photoThumb={photoData?.thumbUrl ?? null}
-        photoThumbRef={photoThumbRef}
-        isPhotoLoading={isPhotoLoading}
-        onBgInput={handleBgInput}
-        onFgInput={handleFgInput}
-        onSwap={swap}
-        onBumpUp={bumpUp}
-        onBumpDown={bumpDown}
-        onBumpTo={bumpTo}
-        onUpdateBgHsb={updateBgHsb}
-        onUpdateFgHsb={updateFgHsb}
-        onUpdateBgOklch={updateBgOklch}
-        onUpdateFgOklch={updateFgOklch}
-        onCycleFormat={cycleFormat}
-        onGenerate={generate}
-        onLoadPhoto={() => loadPhotos(true)}
-        onPhotoOpen={handlePhotoOpen}
-        onCopy={copyExport}
-        onDownload={downloadExport}
-        onToggleTheme={toggleTheme}
-        onToggleSliderMode={toggleSliderMode}
+        bg={bg} fg={fg} bgHex={bgHex} fgHex={fgHex}
+        contrast={contrast} activeThreshold={activeThreshold}
+        theme={theme} sliderMode={sliderMode} contrastAlgorithm={contrastAlgorithm} colorFormat={colorFormat}
+        photoThumb={photoData?.thumbUrl ?? null} photoThumbRef={photoThumbRef} isPhotoLoading={isPhotoLoading}
+        onBgInput={handleBgInput} onFgInput={handleFgInput} onSwap={swap}
+        onBumpUp={bumpUp} onBumpDown={bumpDown} onBumpTo={bumpTo}
+        onUpdateBgHsb={updateBgHsb} onUpdateFgHsb={updateFgHsb}
+        onUpdateBgOklch={updateBgOklch} onUpdateFgOklch={updateFgOklch}
+        onCycleFormat={cycleFormat} onGenerate={generate}
+        onLoadPhoto={() => loadPhotos(true)} onPhotoOpen={handlePhotoOpen}
+        onCopy={copyExport} onDownload={downloadExport}
+        onToggleTheme={toggleTheme} onToggleSliderMode={toggleSliderMode}
         onToggleContrastAlgorithm={toggleContrastAlgorithm}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
-        formatColorValue={formatColorValue}
+        onDragStart={onDragStart} onDragEnd={onDragEnd} formatColorValue={formatColorValue}
       />
     </div>
   );
