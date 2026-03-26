@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { gsap } from '@/lib/gsap-config';
 import { extractContrastPair } from '@/lib/color-engine';
 import type { PhotoData } from './control-strip';
@@ -11,11 +11,17 @@ interface PhotoOverlayProps {
   contrastAlgorithm: ContrastAlgorithm;
   onColorsExtracted: (bg: string, fg: string) => void;
   onNewPhoto: () => void;
+  onPrevPhoto: () => void;
+  onNextPhoto: () => void;
   onCollapse: () => void;
+  hasPrev: boolean;
+  isLoading: boolean;
 }
 
 export function PhotoOverlay({
-  photoData, contrastAlgorithm, onColorsExtracted, onNewPhoto, onCollapse,
+  photoData, contrastAlgorithm, onColorsExtracted,
+  onNewPhoto, onPrevPhoto, onNextPhoto, onCollapse,
+  hasPrev, isLoading,
 }: PhotoOverlayProps) {
   const [colorsReady, setColorsReady] = useState(false);
   const [extracting, setExtracting] = useState(false);
@@ -32,6 +38,12 @@ export function PhotoOverlay({
     }
   }, []);
 
+  // Reset state when photo changes
+  useEffect(() => {
+    setColorsReady(false);
+    setExtracting(false);
+  }, [photoData.url]);
+
   const handleImageLoad = async () => {
     if (!imgRef.current || extracting) return;
     setExtracting(true);
@@ -40,7 +52,6 @@ export function PhotoOverlay({
       const { Vibrant } = await import('node-vibrant/browser');
       const palette = await Vibrant.from(imgRef.current).getPalette();
 
-      // Map vibrant palette to our interface
       const mapped = {
         Vibrant: palette.Vibrant ? { hex: palette.Vibrant.hex, population: palette.Vibrant.population } : null,
         DarkVibrant: palette.DarkVibrant ? { hex: palette.DarkVibrant.hex, population: palette.DarkVibrant.population } : null,
@@ -62,7 +73,7 @@ export function PhotoOverlay({
     }
   };
 
-  const handleCollapse = () => {
+  const handleCollapse = useCallback(() => {
     if (overlayRef.current) {
       gsap.to(overlayRef.current, {
         opacity: 0,
@@ -71,7 +82,27 @@ export function PhotoOverlay({
         onComplete: onCollapse,
       });
     }
-  };
+  }, [onCollapse]);
+
+  // Arrow key navigation
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' && hasPrev) {
+        e.preventDefault();
+        onPrevPhoto();
+      }
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        onNextPhoto();
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        handleCollapse();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [hasPrev, onPrevPhoto, onNextPhoto, handleCollapse]);
 
   return (
     <div
@@ -88,6 +119,29 @@ export function PhotoOverlay({
         onLoad={handleImageLoad}
         className="w-full h-full object-cover"
       />
+
+      {/* Arrow navigation hints */}
+      {hasPrev && (
+        <button
+          onClick={onPrevPhoto}
+          className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/20 backdrop-blur-sm text-white/70 hover:bg-black/40 hover:text-white transition-colors"
+          title="Previous photo (←)"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 4L6 10L12 16" />
+          </svg>
+        </button>
+      )}
+      <button
+        onClick={onNextPhoto}
+        disabled={isLoading}
+        className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/20 backdrop-blur-sm text-white/70 hover:bg-black/40 hover:text-white transition-colors disabled:opacity-30"
+        title="Next photo (→)"
+      >
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M8 4L14 10L8 16" />
+        </svg>
+      </button>
 
       {/* Overlay controls */}
       <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/60 to-transparent">
@@ -116,15 +170,11 @@ export function PhotoOverlay({
 
           {/* Action buttons */}
           <div className="flex items-center gap-2">
-            {extracting && (
-              <span className="text-white/50 text-[11px] font-mono">Extracting...</span>
+            {(extracting || isLoading) && (
+              <span className="text-white/50 text-[11px] font-mono">
+                {isLoading ? 'Loading...' : 'Extracting...'}
+              </span>
             )}
-            <button
-              onClick={onNewPhoto}
-              className="px-3 py-1.5 rounded-lg bg-white/15 backdrop-blur-sm text-white/90 text-[12px] font-mono hover:bg-white/25 transition-colors"
-            >
-              New Photo
-            </button>
             <button
               onClick={handleCollapse}
               disabled={!colorsReady && !extracting}
@@ -134,6 +184,11 @@ export function PhotoOverlay({
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Keyboard hint */}
+      <div className="absolute top-4 right-4 text-white/30 text-[10px] font-mono">
+        ← → navigate &middot; Esc close
       </div>
     </div>
   );

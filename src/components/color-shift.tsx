@@ -39,6 +39,8 @@ export function ColorShift() {
   const [photoData, setPhotoData] = useState<PhotoData | null>(null);
   const [isPhotoFullScreen, setIsPhotoFullScreen] = useState(false);
   const [isPhotoLoading, setIsPhotoLoading] = useState(false);
+  const [photoHistory, setPhotoHistory] = useState<PhotoData[]>([]);
+  const [photoIndex, setPhotoIndex] = useState(-1);
 
   // Drag ref (not state — avoids re-renders)
   const isDraggingRef = useRef(false);
@@ -142,16 +144,39 @@ export function ColorShift() {
     setIsPhotoLoading(true);
     try {
       const res = await fetch('/api/photos');
-      if (!res.ok) throw new Error('Failed to fetch photo');
       const data = await res.json();
+      if (!res.ok || data.error) {
+        console.warn('Photo API:', data.error ?? 'Unknown error. Add UNSPLASH_ACCESS_KEY to .env.local');
+        return;
+      }
       setPhotoData(data);
+      setPhotoHistory(prev => [...prev, data]);
+      setPhotoIndex(prev => prev + 1);
       setIsPhotoFullScreen(true);
     } catch (err) {
-      console.error('Photo load failed:', err);
+      console.warn('Photo load failed:', err);
     } finally {
       setIsPhotoLoading(false);
     }
   }, []);
+
+  const handlePhotoPrev = useCallback(() => {
+    if (photoIndex > 0) {
+      const prev = photoHistory[photoIndex - 1];
+      setPhotoData(prev);
+      setPhotoIndex(i => i - 1);
+    }
+  }, [photoIndex, photoHistory]);
+
+  const handlePhotoNext = useCallback(() => {
+    if (photoIndex < photoHistory.length - 1) {
+      const next = photoHistory[photoIndex + 1];
+      setPhotoData(next);
+      setPhotoIndex(i => i + 1);
+    } else {
+      handleLoadPhoto();
+    }
+  }, [photoIndex, photoHistory, handleLoadPhoto]);
 
   const handlePhotoColorsExtracted = useCallback((newBg: string, newFg: string) => {
     setBgHex(newBg);
@@ -241,7 +266,11 @@ export function ColorShift() {
           contrastAlgorithm={contrastAlgorithm}
           onColorsExtracted={handlePhotoColorsExtracted}
           onNewPhoto={handleLoadPhoto}
+          onPrevPhoto={handlePhotoPrev}
+          onNextPhoto={handlePhotoNext}
           onCollapse={handlePhotoCollapse}
+          hasPrev={photoIndex > 0}
+          isLoading={isPhotoLoading}
         />
       )}
 

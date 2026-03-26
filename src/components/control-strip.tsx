@@ -210,7 +210,7 @@ export function ControlStrip(props: ControlStripProps) {
               className="w-5 h-5 rounded-md shrink-0 ring-1 ring-white/15"
               style={{ backgroundColor: bgHex }}
             />
-            <span className="font-mono text-[12px] tabular-nums opacity-60">
+            <span className={`font-mono text-[12px] tabular-nums ${isDark ? 'text-white/60' : 'text-black/60'}`}>
               {bg.hex.toUpperCase()}
             </span>
           </button>
@@ -361,12 +361,28 @@ function SliderPanel({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
 
+  const isFirstRender = useRef(true);
+
   useEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
+
+    // Skip animation on first render (panel starts hidden)
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      if (!isOpen) return;
+    }
+
     if (isOpen) {
-      gsap.set(panel, { height: 'auto', display: 'block' });
-      gsap.from(panel, { height: 0, opacity: 0, duration: 0.4, ease: 'power2.inOut' });
+      gsap.set(panel, { display: 'block', opacity: 1 });
+      gsap.set(panel, { height: 'auto' });
+      const h = panel.offsetHeight;
+      gsap.fromTo(panel,
+        { height: 0, opacity: 0 },
+        { height: h, opacity: 1, duration: 0.4, ease: 'power2.inOut',
+          onComplete: () => { gsap.set(panel, { height: 'auto' }); }
+        }
+      );
     } else {
       gsap.to(panel, {
         height: 0, opacity: 0, duration: 0.35, ease: 'power2.inOut',
@@ -378,7 +394,7 @@ function SliderPanel({
   const { hsb, oklch } = colorData;
 
   return (
-    <div ref={panelRef} className="overflow-hidden" style={{ display: 'none', height: 0 }}>
+    <div ref={panelRef} className="overflow-hidden" style={{ display: 'none', height: 0, opacity: 0 }}>
       <div className="px-4 pb-4 pt-1">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -450,12 +466,27 @@ function ScorePanel({
   const hoverBg = isDark ? 'hover:bg-white/[0.06]' : 'hover:bg-black/[0.04]';
   const thresholds = getThresholds(contrastAlgorithm);
 
+  const isFirstRender = useRef(true);
+
   useEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
+
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      if (!isOpen) return;
+    }
+
     if (isOpen) {
-      gsap.set(panel, { height: 'auto', display: 'block' });
-      gsap.from(panel, { height: 0, opacity: 0, duration: 0.4, ease: 'power2.inOut' });
+      gsap.set(panel, { display: 'block', opacity: 1 });
+      gsap.set(panel, { height: 'auto' });
+      const h = panel.offsetHeight;
+      gsap.fromTo(panel,
+        { height: 0, opacity: 0 },
+        { height: h, opacity: 1, duration: 0.4, ease: 'power2.inOut',
+          onComplete: () => { gsap.set(panel, { height: 'auto' }); }
+        }
+      );
     } else {
       gsap.to(panel, {
         height: 0, opacity: 0, duration: 0.35, ease: 'power2.inOut',
@@ -471,7 +502,7 @@ function ScorePanel({
       : (isDark ? 'text-amber-300' : 'text-amber-600');
 
   return (
-    <div ref={panelRef} className="overflow-hidden" style={{ display: 'none', height: 0 }}>
+    <div ref={panelRef} className="overflow-hidden" style={{ display: 'none', height: 0, opacity: 0 }}>
       <div className="px-4 pb-4 pt-1">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
