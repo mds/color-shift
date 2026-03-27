@@ -1,13 +1,15 @@
 'use client';
 
 import { useRef, useEffect, useState, forwardRef } from 'react';
-import { gsap } from '@/lib/gsap-config';
+import gsap from 'gsap';
+import { MorphSVGPlugin } from 'gsap/MorphSVGPlugin';
 import { getLetterformPath } from '@/lib/font-paths';
 import type { PhotoData } from './control-strip';
 
+gsap.registerPlugin(MorphSVGPlugin);
+
 const COLOR_DURATION = 0.4;
-const MORPH_DURATION = 0.5;
-const EASE = 'power2.out';
+const MORPH_DURATION = 0.6;
 
 interface StripTransitionProps {
   photo: PhotoData | null;
@@ -24,48 +26,40 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
     const pathRef = useRef<SVGPathElement>(null);
     const photoContainerRef = useRef<HTMLDivElement>(null);
     const prevPhotoId = useRef<string | null>(null);
-    const prevFont = useRef<string>('');
-    const [pathD, setPathD] = useState<string>('');
-    const [viewBox, setViewBox] = useState('0 0 400 200');
-    const hasInitialPath = useRef(false);
+    const fontIndexRef = useRef(0);
+    const [initialPath, setInitialPath] = useState<string>('');
+    const [viewBox, setViewBox] = useState('-10 -10 420 200');
 
-    // Font change → set initial path or morph
+    // Set initial path on first font
     useEffect(() => {
-      if (!font || font === 'serif') return;
-      if (font === prevFont.current) return;
-      prevFont.current = font;
+      if (!font || font === 'serif' || initialPath) return;
+      const path = getLetterformPath(font);
+      if (path) {
+        setInitialPath(path);
+        computeViewBox(path);
+      }
+    }, [font, initialPath]);
+
+    // Morph on font change (same pattern as the working test component)
+    useEffect(() => {
+      if (!font || font === 'serif' || !pathRef.current || !initialPath) return;
 
       const newPath = getLetterformPath(font);
       if (!newPath) return;
 
-      if (!hasInitialPath.current) {
-        // First font — set directly, no morph
-        hasInitialPath.current = true;
-        setPathD(newPath);
-        computeViewBox(newPath);
-        return;
-      }
+      // Skip the very first render (path is already set via initialPath)
+      fontIndexRef.current++;
+      if (fontIndexRef.current <= 1) return;
 
-      // Subsequent fonts — morph via GSAP
-      // pathRef.current has the OLD path in the DOM.
-      // GSAP reads it, interpolates to newPath.
-      if (pathRef.current) {
-        gsap.to(pathRef.current, {
-          morphSVG: { shape: newPath, shapeIndex: 'auto' },
-          duration: MORPH_DURATION,
-          ease: 'power2.inOut',
-          overwrite: true,
-          onComplete: () => {
-            // After morph, commit the new path to React state
-            // so it matches the DOM
-            setPathD(newPath);
-            computeViewBox(newPath);
-          },
-        });
-        // Update viewBox immediately for smooth sizing
-        computeViewBox(newPath);
-      }
-    }, [font]);
+      gsap.to(pathRef.current, {
+        morphSVG: newPath,
+        duration: MORPH_DURATION,
+        ease: 'power2.inOut',
+        overwrite: true,
+      });
+
+      computeViewBox(newPath);
+    }, [font, initialPath]);
 
     function computeViewBox(pathData: string) {
       if (typeof document === 'undefined') return;
@@ -82,17 +76,17 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       setViewBox(`${bbox.x - pad} ${bbox.y - pad} ${bbox.width + pad * 2} ${bbox.height + pad * 2}`);
     }
 
-    // Ease color background
+    // Ease color
     useEffect(() => {
       if (colorRef.current) {
-        gsap.to(colorRef.current, { backgroundColor: bgHex, duration: COLOR_DURATION, ease: EASE, overwrite: true });
+        gsap.to(colorRef.current, { backgroundColor: bgHex, duration: COLOR_DURATION, ease: 'power2.out', overwrite: true });
       }
     }, [bgHex]);
 
-    // Ease text fill color
+    // Ease fill color
     useEffect(() => {
       if (pathRef.current) {
-        gsap.to(pathRef.current, { attr: { fill: fgHex }, duration: COLOR_DURATION, ease: EASE, overwrite: true });
+        gsap.to(pathRef.current, { attr: { fill: fgHex }, duration: COLOR_DURATION, ease: 'power2.out', overwrite: true });
       }
     }, [fgHex]);
 
@@ -104,7 +98,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       if (photoContainerRef.current) {
         gsap.fromTo(photoContainerRef.current,
           { opacity: 0.3 },
-          { opacity: 1, duration: COLOR_DURATION * 1.5, ease: EASE, overwrite: true }
+          { opacity: 1, duration: 0.6, ease: 'power2.out', overwrite: true }
         );
       }
     }, [photo]);
@@ -117,17 +111,13 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
           className="w-1/2 h-full flex items-center justify-center"
           style={{ backgroundColor: bgHex }}
         >
-          {pathD ? (
+          {initialPath ? (
             <svg
               viewBox={viewBox}
               className="w-auto h-[30vh] sm:h-[35vh] md:h-[40vh] max-w-[80%]"
               preserveAspectRatio="xMidYMid meet"
             >
-              <path
-                ref={pathRef}
-                d={pathD}
-                fill={fgHex}
-              />
+              <path ref={pathRef} d={initialPath} fill={fgHex} />
             </svg>
           ) : (
             <span
@@ -143,11 +133,8 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
         <div ref={photoContainerRef} className="w-1/2 h-full relative overflow-hidden">
           {photo && (
             <>
-              <img src={photo.tinyUrl} alt=""
-                className="absolute inset-0 w-full h-full object-cover"
-                style={{ imageRendering: 'pixelated' }} />
-              <img src={photo.url} alt={photo.alt}
-                className="absolute inset-0 w-full h-full object-cover" />
+              <img src={photo.tinyUrl} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
+              <img src={photo.url} alt={photo.alt} className="absolute inset-0 w-full h-full object-cover" />
             </>
           )}
           {photo && (
