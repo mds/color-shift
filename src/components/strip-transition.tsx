@@ -29,7 +29,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
     const [currentPath, setCurrentPath] = useState<string | null>(null);
     const [viewBox, setViewBox] = useState('0 0 400 200');
 
-    // Load or morph font path whenever font changes
+    // Load or morph font path whenever font changes — instant (precomputed)
     useEffect(() => {
       if (!font || font === 'serif') return;
       if (font === prevFont.current) return;
@@ -37,29 +37,27 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       const isFirst = prevFont.current === '';
       prevFont.current = font;
 
-      getLetterformPath(font, specimenText).then(newPath => {
-        if (!newPath) return;
+      const newPath = getLetterformPath(font);
+      if (!newPath) return;
 
-        if (isFirst || !pathRef.current || !currentPath) {
-          // First load or no existing path — set directly
+      if (isFirst || !pathRef.current || !currentPath) {
+        setCurrentPath(newPath);
+        updateViewBox(newPath);
+        return;
+      }
+
+      // Morph from current to next
+      gsap.to(pathRef.current, {
+        morphSVG: newPath,
+        duration: MORPH_DURATION,
+        ease: 'power2.inOut',
+        overwrite: true,
+        onComplete: () => {
           setCurrentPath(newPath);
           updateViewBox(newPath);
-          return;
-        }
-
-        // Morph from current to next
-        gsap.to(pathRef.current, {
-          morphSVG: newPath,
-          duration: MORPH_DURATION,
-          ease: 'power2.inOut',
-          overwrite: true,
-          onComplete: () => {
-            setCurrentPath(newPath);
-            updateViewBox(newPath);
-          },
-        });
+        },
       });
-    }, [font, specimenText, currentPath]);
+    }, [font, currentPath]);
 
     // Update viewBox to fit the path
     function updateViewBox(pathData: string) {

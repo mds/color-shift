@@ -24,8 +24,7 @@ import {
 } from '@/lib/color-engine';
 import { ControlStrip, type PhotoData } from './control-strip';
 import { StripTransition } from './strip-transition';
-import { getFontForPhoto, SPECIMEN_FONTS } from '@/lib/fonts';
-import { preloadFontPaths } from '@/lib/font-paths';
+import { getFontForPhoto } from '@/lib/fonts';
 
 interface PhotoColors { bg: string; fg: string; }
 
@@ -190,8 +189,6 @@ export function ColorShift() {
     if (hasInitialLoad.current) return;
     hasInitialLoad.current = true;
     loadPhotos();
-    // Preload all font SVG paths in background
-    preloadFontPaths(SPECIMEN_FONTS);
   }, [loadPhotos]);
 
   // ── Navigation — triggers strip transition ──
