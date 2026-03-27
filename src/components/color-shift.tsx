@@ -43,10 +43,9 @@ export function ColorShift() {
   const isFetchingMore = useRef(false);
   const hasInitialLoad = useRef(false);
 
-  // ── Transition state ──
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  // ── Navigation direction (for transition component) ──
   const [transitionDirection, setTransitionDirection] = useState<'left' | 'right'>('left');
-  const [pendingIndex, setPendingIndex] = useState<number | null>(null);
+  const prevIndexRef = useRef(0);
 
   // ── Color cache ──
   const [colorMap, setColorMap] = useState<Map<string, PhotoColors>>(new Map());
@@ -71,11 +70,7 @@ export function ColorShift() {
   const fgHex = colors.fg;
   const isReady = photoData !== null;
 
-  // Next photo + colors + font for transition
-  const nextPhoto = pendingIndex !== null ? (photoBuffer[pendingIndex] ?? null) : null;
-  const nextColors = nextPhoto ? getColorsForPhoto(nextPhoto) : { bg: '#000000', fg: '#000000' };
   const currentFont = photoData ? getFontForPhoto(photoData.id) : 'serif';
-  const nextFontFamily = nextPhoto ? getFontForPhoto(nextPhoto.id) : 'serif';
 
   useEffect(() => { setManualColors(null); }, [photoIndex]);
 
@@ -200,33 +195,13 @@ export function ColorShift() {
 
   const navigateTo = useCallback((newIndex: number) => {
     if (newIndex < 0 || newIndex >= photoBuffer.length) return;
-
-    // If already transitioning, commit the current pending state first
-    if (isTransitioning && pendingIndex !== null) {
-      setPhotoIndex(pendingIndex);
-    }
-
-    const fromIndex = isTransitioning && pendingIndex !== null ? pendingIndex : photoIndex;
-    if (newIndex === fromIndex) return;
-
-    setTransitionDirection(newIndex > fromIndex ? 'left' : 'right');
-    setPendingIndex(newIndex);
-    setIsTransitioning(true);
+    if (newIndex === photoIndex) return;
+    setTransitionDirection(newIndex > photoIndex ? 'left' : 'right');
+    prevIndexRef.current = photoIndex;
+    setPhotoIndex(newIndex);
     maybeRefill(newIndex, photoBuffer);
     preloadImages(photoBuffer.slice(newIndex + 1, newIndex + 3));
-  }, [isTransitioning, pendingIndex, photoIndex, photoBuffer, maybeRefill, preloadImages]);
-
-  const handleTransitionComplete = useCallback(() => {
-    if (pendingIndex !== null) {
-      setPhotoIndex(pendingIndex);
-    }
-    setPendingIndex(null);
-    // Delay clearing isTransitioning by one frame so the base layer
-    // renders with the new photo before the overlay hides
-    requestAnimationFrame(() => {
-      setIsTransitioning(false);
-    });
-  }, [pendingIndex]);
+  }, [photoIndex, photoBuffer, maybeRefill, preloadImages]);
 
   // Inject photo
   const injectPhoto = useCallback(async () => {
@@ -243,10 +218,8 @@ export function ColorShift() {
       return next;
     });
     // Navigate to the injected photo
-    setTransitionDirection('left');
-    setPendingIndex(insertAt);
-    setIsTransitioning(true);
-  }, [fetchPhotos, preloadThumbs, preloadImages, extractBatchColors, photoIndex, isTransitioning]);
+    setPhotoIndex(insertAt);
+  }, [fetchPhotos, preloadThumbs, preloadImages, extractBatchColors, photoIndex]);
 
   // ── Manual color manipulation ──
 
@@ -302,16 +275,15 @@ export function ColorShift() {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' && target !== specimenInputRef.current) return;
-      const effectiveIndex = pendingIndex ?? photoIndex;
-      if (e.key === 'ArrowRight') { e.preventDefault(); navigateTo(effectiveIndex - 1); }
-      if (e.key === 'ArrowLeft') { e.preventDefault(); navigateTo(effectiveIndex + 1); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); navigateTo(photoIndex - 1); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); navigateTo(photoIndex + 1); }
       if (e.code === 'Space' && target !== specimenInputRef.current) { e.preventDefault(); injectPhoto(); }
       if ((e.key === 's' || e.key === 'S') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) { e.preventDefault(); swap(); }
       if ((e.key === 't' || e.key === 'T') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) { e.preventDefault(); toggleTheme(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [navigateTo, photoIndex, pendingIndex, injectPhoto, swap, toggleTheme]);
+  }, [navigateTo, photoIndex, injectPhoto, swap, toggleTheme]);
 
   return (
     <div
@@ -320,22 +292,15 @@ export function ColorShift() {
       data-theme={theme}
       style={{ backgroundColor: '#000' }}
     >
-      {/* Strip transition — unified color + photo with row-based sliding */}
+      {/* Color + Photo display */}
       <div className="flex-1 min-h-0 overflow-hidden">
         <StripTransition
           ref={stripRef}
-          currentPhoto={photoData}
-          nextPhoto={nextPhoto}
-          currentBg={bgHex}
-          currentFg={fgHex}
-          nextBg={nextColors.bg}
-          nextFg={nextColors.fg}
-          currentFont={currentFont}
-          nextFont={nextFontFamily}
+          photo={photoData}
+          bgHex={bgHex}
+          fgHex={fgHex}
+          font={currentFont}
           specimenText={specimenText}
-          onTransitionComplete={handleTransitionComplete}
-          isTransitioning={isTransitioning}
-          direction={transitionDirection}
         />
       </div>
 
