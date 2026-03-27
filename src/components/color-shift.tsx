@@ -22,9 +22,8 @@ import {
   type OklchValues,
   type VibrantPalette,
 } from '@/lib/color-engine';
-import { Specimen } from './specimen';
 import { ControlStrip, type PhotoData } from './control-strip';
-import { PhotoPanel } from './photo-panel';
+import { StripTransition } from './strip-transition';
 
 interface PhotoColors { bg: string; fg: string; }
 
@@ -43,31 +42,44 @@ export function ColorShift() {
   const isFetchingMore = useRef(false);
   const hasInitialLoad = useRef(false);
 
+  // ── Transition state ──
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [transitionDirection, setTransitionDirection] = useState<'left' | 'right'>('left');
+  const [pendingIndex, setPendingIndex] = useState<number | null>(null);
+
   // ── Color cache ──
   const [colorMap, setColorMap] = useState<Map<string, PhotoColors>>(new Map());
   const [manualColors, setManualColors] = useState<PhotoColors | null>(null);
   const photoData = photoBuffer[photoIndex] ?? null;
 
-  // ── Derive colors ──
+  // ── Derive colors for current photo ──
+  const getColorsForPhoto = useCallback((photo: PhotoData | null): PhotoColors => {
+    if (!photo) return { bg: '#000000', fg: '#000000' };
+    const cached = colorMap.get(photo.id);
+    if (cached) return cached;
+    const safeFg = bumpToThreshold(photo.color, '#FFFFFF', 4.5, 'WCAG2');
+    return { bg: photo.color, fg: safeFg };
+  }, [colorMap]);
+
   const colors = useMemo((): PhotoColors => {
     if (manualColors) return manualColors;
-    if (!photoData) return { bg: '#000000', fg: '#000000' };
-    const cached = colorMap.get(photoData.id);
-    if (cached) return cached;
-    const safeFg = bumpToThreshold(photoData.color, '#FFFFFF', 4.5, 'WCAG2');
-    return { bg: photoData.color, fg: safeFg };
-  }, [photoData, colorMap, manualColors]);
+    return getColorsForPhoto(photoData);
+  }, [photoData, manualColors, getColorsForPhoto]);
 
   const bgHex = colors.bg;
   const fgHex = colors.fg;
   const isReady = photoData !== null;
+
+  // Next photo + colors for transition
+  const nextPhoto = pendingIndex !== null ? (photoBuffer[pendingIndex] ?? null) : null;
+  const nextColors = nextPhoto ? getColorsForPhoto(nextPhoto) : { bg: '#000000', fg: '#000000' };
 
   useEffect(() => { setManualColors(null); }, [photoIndex]);
 
   // ── Refs ──
   const isDraggingRef = useRef(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const specimenRef = useRef<HTMLDivElement>(null);
+  const stripRef = useRef<HTMLDivElement>(null);
   const specimenInputRef = useRef<HTMLInputElement>(null);
 
   // ── Derived ──
@@ -76,25 +88,8 @@ export function ColorShift() {
   const contrast = getContrastResult(bgHex, fgHex, contrastAlgorithm);
   const activeThreshold = nearestThreshold(contrast.score, contrastAlgorithm);
 
-  // ── GSAP color animation ──
+  // ── GSAP ──
   useGSAP(() => {}, { scope: rootRef });
-  const prevBg = useRef(bgHex);
-  const prevFg = useRef(fgHex);
-
-  useEffect(() => {
-    if (isDraggingRef.current) { prevBg.current = bgHex; prevFg.current = fgHex; return; }
-    const dur = 0.45; // match Embla slide duration
-    const ease = 'power2.inOut';
-    if (bgHex !== prevBg.current && specimenRef.current) {
-      gsap.to(specimenRef.current, { backgroundColor: bgHex, duration: dur, ease });
-    }
-    if (fgHex !== prevFg.current && specimenRef.current) {
-      const input = specimenRef.current.querySelector('input');
-      if (input) gsap.to(input, { color: fgHex, duration: dur, ease });
-    }
-    prevBg.current = bgHex;
-    prevFg.current = fgHex;
-  }, [bgHex, fgHex]);
 
   // ── Photo fetching ──
 
@@ -198,34 +193,47 @@ export function ColorShift() {
     loadPhotos();
   }, [loadPhotos]);
 
-  // ── Navigation ──
+  // ── Navigation — triggers strip transition ──
 
-  const handlePhotoIndexChange = useCallback((newIndex: number) => {
-    setPhotoIndex(newIndex);
+  const navigateTo = useCallback((newIndex: number) => {
+    if (isTransitioning || newIndex === photoIndex) return;
+    if (newIndex < 0 || newIndex >= photoBuffer.length) return;
+
+    setTransitionDirection(newIndex > photoIndex ? 'left' : 'right');
+    setPendingIndex(newIndex);
+    setIsTransitioning(true);
     maybeRefill(newIndex, photoBuffer);
     preloadImages(photoBuffer.slice(newIndex + 1, newIndex + 3));
-  }, [photoBuffer, maybeRefill, preloadImages]);
+  }, [isTransitioning, photoIndex, photoBuffer, maybeRefill, preloadImages]);
 
-  // Inject a random photo after the current position and advance to it
+  const handleTransitionComplete = useCallback(() => {
+    if (pendingIndex !== null) {
+      setPhotoIndex(pendingIndex);
+    }
+    setPendingIndex(null);
+    setIsTransitioning(false);
+  }, [pendingIndex]);
+
+  // Inject photo
   const injectPhoto = useCallback(async () => {
+    if (isTransitioning) return;
     const photos = await fetchPhotos(1);
     if (photos.length === 0) return;
     const newPhoto = photos[0];
-
-    // Preload assets
     preloadThumbs([newPhoto]);
     preloadImages([newPhoto]);
     extractBatchColors([newPhoto]);
-
-    // Splice into buffer after current index
     const insertAt = photoIndex + 1;
     setPhotoBuffer(prev => {
       const next = [...prev];
       next.splice(insertAt, 0, newPhoto);
       return next;
     });
-    setPhotoIndex(insertAt);
-  }, [fetchPhotos, preloadThumbs, preloadImages, extractBatchColors, photoIndex]);
+    // Navigate to the injected photo
+    setTransitionDirection('left');
+    setPendingIndex(insertAt);
+    setIsTransitioning(true);
+  }, [fetchPhotos, preloadThumbs, preloadImages, extractBatchColors, photoIndex, isTransitioning]);
 
   // ── Manual color manipulation ──
 
@@ -276,18 +284,20 @@ export function ColorShift() {
   const onDragStart = useCallback(() => { isDraggingRef.current = true; }, []);
   const onDragEnd = useCallback(() => { isDraggingRef.current = false; }, []);
 
-  // ── Keyboard — arrows handled by PhotoPanel, Space/S/T here ──
+  // ── Keyboard ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' && target !== specimenInputRef.current) return;
+      if (e.key === 'ArrowRight') { e.preventDefault(); navigateTo(photoIndex + 1); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); navigateTo(photoIndex - 1); }
       if (e.code === 'Space' && target !== specimenInputRef.current) { e.preventDefault(); injectPhoto(); }
       if ((e.key === 's' || e.key === 'S') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) { e.preventDefault(); swap(); }
       if ((e.key === 't' || e.key === 'T') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) { e.preventDefault(); toggleTheme(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [injectPhoto, swap, toggleTheme]);
+  }, [navigateTo, photoIndex, injectPhoto, swap, toggleTheme]);
 
   return (
     <div
@@ -296,28 +306,21 @@ export function ColorShift() {
       data-theme={theme}
       style={{ backgroundColor: '#000' }}
     >
-      {/* Split: color top + photo bottom (mobile) / color left + photo right (desktop) */}
-      {/* Both panels use fixed 50% heights on mobile, fixed 50% widths on desktop */}
-      <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
-        {/* Color panel — fixed half */}
-        <div className="h-1/2 md:h-full md:w-1/2 shrink-0 overflow-hidden">
-          <Specimen
-            ref={specimenRef} bgHex={bgHex} fgHex={fgHex}
-            text={specimenText} onTextChange={setSpecimenText}
-            inputRef={specimenInputRef}
-          />
-        </div>
-
-        {/* Photo panel — fixed half */}
-        {photoBuffer.length > 0 && (
-          <div className="h-1/2 md:h-full md:w-1/2 shrink-0 overflow-hidden">
-            <PhotoPanel
-              buffer={photoBuffer}
-              currentIndex={photoIndex}
-              onIndexChange={handlePhotoIndexChange}
-            />
-          </div>
-        )}
+      {/* Strip transition — unified color + photo with row-based sliding */}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <StripTransition
+          ref={stripRef}
+          currentPhoto={photoData}
+          nextPhoto={nextPhoto}
+          currentBg={bgHex}
+          currentFg={fgHex}
+          nextBg={nextColors.bg}
+          nextFg={nextColors.fg}
+          specimenText={specimenText}
+          onTransitionComplete={handleTransitionComplete}
+          isTransitioning={isTransitioning}
+          direction={transitionDirection}
+        />
       </div>
 
       {/* Controls */}
