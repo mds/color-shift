@@ -43,20 +43,25 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       }
     }, [photo]);
 
-    const toggle = useCallback(() => {
+    const handleDown = useCallback(() => {
+      const active = showText ? textRef.current : circleRef.current;
+      if (active) {
+        gsap.to(active, { scale: 0.85, duration: 0.15, ease: 'power2.out' });
+      }
+    }, [showText]);
+
+    const handleUp = useCallback(() => {
       const text = textRef.current;
       const circle = circleRef.current;
       if (!text || !circle) return;
 
       if (showText) {
-        // Hide text, show circle
         gsap.to(text, { scale: 0.5, opacity: 0, duration: TOGGLE_DURATION, ease: 'power2.in' });
         gsap.fromTo(circle,
           { scale: 0.5, opacity: 0 },
           { scale: 1, opacity: 1, duration: TOGGLE_DURATION, ease: 'power2.out', delay: 0.1 }
         );
       } else {
-        // Hide circle, show text
         gsap.to(circle, { scale: 0.5, opacity: 0, duration: TOGGLE_DURATION, ease: 'power2.in' });
         gsap.fromTo(text,
           { scale: 0.5, opacity: 0 },
@@ -72,9 +77,12 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
         {/* Color panel */}
         <div
           ref={colorRef}
-          className="w-1/2 h-full flex items-center justify-center relative cursor-pointer"
+          className="w-1/2 h-full flex items-center justify-center relative cursor-pointer select-none"
           style={{ backgroundColor: bgHex }}
-          onClick={toggle}
+          onMouseDown={handleDown}
+          onMouseUp={handleUp}
+          onTouchStart={handleDown}
+          onTouchEnd={handleUp}
         >
           {/* Text — visible by default */}
           <span
