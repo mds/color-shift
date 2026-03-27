@@ -16,10 +16,14 @@ import type { PhotoData } from './control-strip';
 // --enter-duration: element enter duration
 // --enter-overshoot: back.out overshoot amount
 
-function getCSSVar(name: string, fallback: number): number {
+function getMotionValue(name: string, fallback: number): number {
+  // Read directly from inline style first (set by DialKit), then computed style, then fallback
   if (typeof window === 'undefined') return fallback;
-  const val = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return val ? parseFloat(val) : fallback;
+  const inline = document.documentElement.style.getPropertyValue(name).trim();
+  if (inline) return parseFloat(inline) || fallback;
+  const computed = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  if (computed) return parseFloat(computed) || fallback;
+  return fallback;
 }
 
 interface StripTransitionProps {
@@ -38,13 +42,16 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
     const prevPhotoId = useRef<string | null>(null);
     const [showText, setShowText] = useState(true);
 
-    // Ease background color
+    // Ease background color + text/fill colors
     useEffect(() => {
+      const dur = getMotionValue('--color-duration', 0.4);
       if (colorRef.current) {
-        const dur = getCSSVar('--color-duration', 0.4);
         gsap.to(colorRef.current, { backgroundColor: bgHex, duration: dur, ease: 'power2.out', overwrite: true });
       }
-    }, [bgHex]);
+      if (textRef.current) {
+        gsap.to(textRef.current, { color: fgHex, duration: dur, ease: 'power2.out', overwrite: 'auto' });
+      }
+    }, [bgHex, fgHex]);
 
     // Crossfade photo
     useEffect(() => {
@@ -52,8 +59,8 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       if (photo.id === prevPhotoId.current) return;
       prevPhotoId.current = photo.id;
       if (photoContainerRef.current) {
-        const dur = getCSSVar('--photo-duration', 0.6);
-        const startOpacity = getCSSVar('--photo-opacity', 0.3);
+        const dur = getMotionValue('--photo-duration', 0.6);
+        const startOpacity = getMotionValue('--photo-opacity', 0.3);
         gsap.fromTo(photoContainerRef.current,
           { opacity: startOpacity },
           { opacity: 1, duration: dur, ease: 'power2.out', overwrite: true }
@@ -64,8 +71,8 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
     const handleDown = useCallback(() => {
       const active = showText ? textRef.current : circleRef.current;
       if (active) {
-        const scale = getCSSVar('--squish-scale', 0.85);
-        const dur = getCSSVar('--squish-duration', 0.15);
+        const scale = getMotionValue('--squish-scale', 0.85);
+        const dur = getMotionValue('--squish-duration', 0.15);
         gsap.to(active, { scale, duration: dur, ease: 'power2.out' });
       }
     }, [showText]);
@@ -78,11 +85,11 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       const active = showText ? text : circle;
       const incoming = showText ? circle : text;
 
-      const popScale = getCSSVar('--pop-scale', 1.05);
-      const popDur = getCSSVar('--pop-duration', 0.1);
-      const exitDur = getCSSVar('--exit-duration', 0.25);
-      const enterDur = getCSSVar('--enter-duration', 0.35);
-      const overshoot = getCSSVar('--enter-overshoot', 1.4);
+      const popScale = getMotionValue('--pop-scale', 1.05);
+      const popDur = getMotionValue('--pop-duration', 0.1);
+      const exitDur = getMotionValue('--exit-duration', 0.25);
+      const enterDur = getMotionValue('--enter-duration', 0.35);
+      const overshoot = getMotionValue('--enter-overshoot', 1.4);
 
       const tl = gsap.timeline();
       tl.to(active, { scale: popScale, duration: popDur, ease: 'power2.out' })
