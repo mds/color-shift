@@ -26,39 +26,32 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
     const pathRef = useRef<SVGPathElement>(null);
     const photoContainerRef = useRef<HTMLDivElement>(null);
     const prevPhotoId = useRef<string | null>(null);
-    const fontCount = useRef(0);
-    const [initialPath, setInitialPath] = useState<string>('');
+    const [ready, setReady] = useState(false);
     const [viewBox, setViewBox] = useState('-10 -10 420 200');
 
-    // Set initial path on first font
+    // Set initial path directly on the DOM element, then let GSAP own it
     useEffect(() => {
-      if (!font || font === 'serif' || initialPath) return;
+      if (!font || font === 'serif') return;
       const path = getLetterformPath(font);
-      if (path) {
-        setInitialPath(path);
+      if (!path || !pathRef.current) return;
+
+      if (!ready) {
+        // First font — set path on DOM and mark ready
+        pathRef.current.setAttribute('d', path);
         computeViewBox(path);
+        setReady(true);
+        return;
       }
-    }, [font, initialPath]);
 
-    // Morph on font change — exactly like the working test component
-    useEffect(() => {
-      if (!font || font === 'serif' || !pathRef.current || !initialPath) return;
-
-      fontCount.current++;
-      if (fontCount.current <= 1) return; // skip first (already set via initialPath)
-
-      const newPath = getLetterformPath(font);
-      if (!newPath) return;
-
+      // Subsequent fonts — morph via GSAP (DOM element already has previous path)
       gsap.to(pathRef.current, {
-        morphSVG: newPath,
+        morphSVG: path,
         duration: MORPH_DURATION,
         ease: 'power2.inOut',
-        // NO overwrite — don't kill this tween
       });
 
-      computeViewBox(newPath);
-    }, [font, initialPath]);
+      computeViewBox(path);
+    }, [font, ready]);
 
     function computeViewBox(pathData: string) {
       if (typeof document === 'undefined') return;
@@ -110,22 +103,14 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
           className="w-1/2 h-full flex items-center justify-center"
           style={{ backgroundColor: bgHex }}
         >
-          {initialPath ? (
-            <svg
-              viewBox={viewBox}
-              className="w-auto h-[30vh] sm:h-[35vh] md:h-[40vh] max-w-[80%]"
-              preserveAspectRatio="xMidYMid meet"
-            >
-              <path ref={pathRef} d={initialPath} fill={fgHex} />
-            </svg>
-          ) : (
-            <span
-              className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-[1] tracking-tight"
-              style={{ color: fgHex, fontFamily: 'serif' }}
-            >
-              {specimenText}
-            </span>
-          )}
+          <svg
+            viewBox={viewBox}
+            className="w-auto h-[30vh] sm:h-[35vh] md:h-[40vh] max-w-[80%]"
+            preserveAspectRatio="xMidYMid meet"
+            style={{ opacity: ready ? 1 : 0 }}
+          >
+            <path ref={pathRef} d="M0 0" fill={fgHex} />
+          </svg>
         </div>
 
         {/* Photo panel */}
