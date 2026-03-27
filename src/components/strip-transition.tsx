@@ -22,54 +22,62 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
 
     const colorRef = useRef<HTMLDivElement>(null);
     const pathRef = useRef<SVGPathElement>(null);
-    const svgRef = useRef<SVGSVGElement>(null);
     const photoContainerRef = useRef<HTMLDivElement>(null);
     const prevPhotoId = useRef<string | null>(null);
     const prevFont = useRef<string>('');
-    const [currentPath, setCurrentPath] = useState<string | null>(null);
+    const [pathD, setPathD] = useState<string>('');
     const [viewBox, setViewBox] = useState('0 0 400 200');
+    const hasInitialPath = useRef(false);
 
-    // Load or morph font path whenever font changes — instant (precomputed)
+    // Font change → set initial path or morph
     useEffect(() => {
       if (!font || font === 'serif') return;
       if (font === prevFont.current) return;
-
-      const isFirst = prevFont.current === '';
       prevFont.current = font;
 
       const newPath = getLetterformPath(font);
       if (!newPath) return;
 
-      if (isFirst || !pathRef.current || !currentPath) {
-        setCurrentPath(newPath);
-        updateViewBox(newPath);
+      if (!hasInitialPath.current) {
+        // First font — set directly, no morph
+        hasInitialPath.current = true;
+        setPathD(newPath);
+        computeViewBox(newPath);
         return;
       }
 
-      // Morph from current to next
-      gsap.to(pathRef.current, {
-        morphSVG: newPath,
-        duration: MORPH_DURATION,
-        ease: 'power2.inOut',
-        overwrite: true,
-        onComplete: () => {
-          setCurrentPath(newPath);
-          updateViewBox(newPath);
-        },
-      });
-    }, [font, currentPath]);
+      // Subsequent fonts — morph via GSAP
+      // pathRef.current has the OLD path in the DOM.
+      // GSAP reads it, interpolates to newPath.
+      if (pathRef.current) {
+        gsap.to(pathRef.current, {
+          morphSVG: { shape: newPath, shapeIndex: 'auto' },
+          duration: MORPH_DURATION,
+          ease: 'power2.inOut',
+          overwrite: true,
+          onComplete: () => {
+            // After morph, commit the new path to React state
+            // so it matches the DOM
+            setPathD(newPath);
+            computeViewBox(newPath);
+          },
+        });
+        // Update viewBox immediately for smooth sizing
+        computeViewBox(newPath);
+      }
+    }, [font]);
 
-    // Update viewBox to fit the path
-    function updateViewBox(pathData: string) {
-      // Parse path to get bounds
+    function computeViewBox(pathData: string) {
+      if (typeof document === 'undefined') return;
       const tempSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       const tempPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       tempPath.setAttribute('d', pathData);
       tempSvg.appendChild(tempPath);
+      tempSvg.style.position = 'absolute';
+      tempSvg.style.visibility = 'hidden';
       document.body.appendChild(tempSvg);
       const bbox = tempPath.getBBox();
       document.body.removeChild(tempSvg);
-
       const pad = 10;
       setViewBox(`${bbox.x - pad} ${bbox.y - pad} ${bbox.width + pad * 2} ${bbox.height + pad * 2}`);
     }
@@ -93,7 +101,6 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       if (!photo) return;
       if (photo.id === prevPhotoId.current) return;
       prevPhotoId.current = photo.id;
-
       if (photoContainerRef.current) {
         gsap.fromTo(photoContainerRef.current,
           { opacity: 0.3 },
@@ -110,27 +117,22 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
           className="w-1/2 h-full flex items-center justify-center"
           style={{ backgroundColor: bgHex }}
         >
-          {currentPath ? (
+          {pathD ? (
             <svg
-              ref={svgRef}
               viewBox={viewBox}
               className="w-auto h-[30vh] sm:h-[35vh] md:h-[40vh] max-w-[80%]"
               preserveAspectRatio="xMidYMid meet"
             >
               <path
                 ref={pathRef}
-                d={currentPath}
+                d={pathD}
                 fill={fgHex}
               />
             </svg>
           ) : (
-            // Fallback while font loads
             <span
               className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-[1] tracking-tight"
-              style={{
-                color: fgHex,
-                fontFamily: font === 'serif' ? 'serif' : `'${font}', serif`,
-              }}
+              style={{ color: fgHex, fontFamily: 'serif' }}
             >
               {specimenText}
             </span>
