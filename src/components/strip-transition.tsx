@@ -25,38 +25,25 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
     const svgRef = useRef<SVGSVGElement>(null);
     const photoContainerRef = useRef<HTMLDivElement>(null);
     const prevPhotoId = useRef<string | null>(null);
-    const prevFont = useRef<string>(font);
+    const prevFont = useRef<string>('');
     const [currentPath, setCurrentPath] = useState<string | null>(null);
     const [viewBox, setViewBox] = useState('0 0 400 200');
-    const isFirstRender = useRef(true);
 
-    // Load initial font path
+    // Load or morph font path whenever font changes
     useEffect(() => {
       if (!font || font === 'serif') return;
-      getLetterformPath(font, specimenText).then(path => {
-        if (path) {
-          setCurrentPath(path);
-          // Calculate viewBox from the path
-          updateViewBox(path);
-        }
-      });
-    }, []); // only on mount
-
-    // When font changes — morph to the new letterform
-    useEffect(() => {
       if (font === prevFont.current) return;
+
+      const isFirst = prevFont.current === '';
       prevFont.current = font;
 
-      if (!font || font === 'serif' || !pathRef.current) return;
-
       getLetterformPath(font, specimenText).then(newPath => {
-        if (!newPath || !pathRef.current) return;
+        if (!newPath) return;
 
-        if (isFirstRender.current || !currentPath) {
-          // First load — just set it directly
+        if (isFirst || !pathRef.current || !currentPath) {
+          // First load or no existing path — set directly
           setCurrentPath(newPath);
           updateViewBox(newPath);
-          isFirstRender.current = false;
           return;
         }
 
@@ -65,6 +52,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
           morphSVG: newPath,
           duration: MORPH_DURATION,
           ease: 'power2.inOut',
+          overwrite: true,
           onComplete: () => {
             setCurrentPath(newPath);
             updateViewBox(newPath);

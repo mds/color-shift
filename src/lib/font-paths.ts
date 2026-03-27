@@ -14,14 +14,14 @@ function getFontFileUrl(fontName: string): string {
   return `https://fonts.googleapis.com/css2?family=${encoded}&display=swap`;
 }
 
-// Fetch the actual woff2 URL from Google Fonts CSS
-async function getWoff2Url(fontName: string): Promise<string | null> {
+// Fetch the actual font file URL from Google Fonts CSS (woff2, ttf, or woff)
+async function getFontFileUrlFromCSS(fontName: string): Promise<string | null> {
   try {
     const cssUrl = getFontFileUrl(fontName);
     const res = await fetch(cssUrl);
     const css = await res.text();
-    // Extract woff2 URL from the CSS
-    const match = css.match(/url\((https:\/\/fonts\.gstatic\.com\/[^)]+\.woff2)\)/);
+    // Extract any font file URL from the CSS (woff2, ttf, woff, otf)
+    const match = css.match(/url\((https:\/\/fonts\.gstatic\.com\/[^)]+)\)/);
     return match ? match[1] : null;
   } catch {
     return null;
@@ -33,16 +33,18 @@ async function loadFont(fontName: string): Promise<opentype.Font | null> {
   const cached = fontCache.get(fontName);
   if (cached) return cached;
 
-  const url = await getWoff2Url(fontName);
+  const url = await getFontFileUrlFromCSS(fontName);
   if (!url) return null;
 
   try {
     const res = await fetch(url);
+    if (!res.ok) { console.warn(`Font fetch failed for ${fontName}:`, res.status); return null; }
     const buffer = await res.arrayBuffer();
     const font = opentype.parse(buffer);
     fontCache.set(fontName, font);
     return font;
-  } catch {
+  } catch (err) {
+    console.warn(`Font parse failed for ${fontName}:`, err);
     return null;
   }
 }
