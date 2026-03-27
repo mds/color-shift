@@ -4,17 +4,11 @@ import { useRef, useEffect, forwardRef } from 'react';
 import { gsap } from '@/lib/gsap-config';
 import type { PhotoData } from './control-strip';
 
-// 4 panels: [current-color] [current-photo] [next-color] [next-photo]
-// Each moves at a different speed for parallax overlap effect.
-// At rest: panels 0+1 fill viewport (50% each). Panels 2+3 off-screen right.
+// SVG curve wipe transition — left to right
+// An SVG path morphs from flat (left edge) → curved bulge → flat (covers screen)
+// The SVG is filled with the NEXT photo's content, wiping over the current.
 
-const DURATION = 0.6;
-const EASE = 'power3.inOut';
-
-// Parallax speed multipliers — higher = moves further/faster
-// Panel 0 (current color): fastest exit
-// Panel 3 (next photo): slowest entry
-const PARALLAX = [1.0, 0.85, 0.7, 0.55];
+const DURATION = 0.8;
 
 interface StripTransitionProps {
   currentPhoto: PhotoData | null;
@@ -36,45 +30,72 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
      currentFont, nextFont, specimenText, onTransitionComplete,
      isTransitioning, direction }, ref) => {
 
-    const panelRefs = useRef<(HTMLDivElement | null)[]>([]);
+    const pathRef = useRef<SVGPathElement>(null);
     const tlRef = useRef<gsap.core.Timeline | null>(null);
+    const overlayRef = useRef<HTMLDivElement>(null);
+
+    // SVG path definitions for left-to-right wipe
+    // Path draws a shape from left edge. Morphs: flat left → curved bulge → covers all
+    const PATH_START = 'M 0 0 H 0 Q 0 50 0 100 H 0 z';           // flat at left edge (invisible)
+    const PATH_MID   = 'M 0 0 H 50 Q 0 50 50 100 H 0 z';         // curved bulge emerging from left
+    const PATH_END   = 'M 0 0 H 100 Q 100 50 100 100 H 0 z';     // covers entire viewport
 
     useEffect(() => {
       if (!isTransitioning || !nextPhoto) return;
 
-      const panels = panelRefs.current.filter(Boolean) as HTMLDivElement[];
-      if (panels.length !== 4) return;
+      const path = pathRef.current;
+      const overlay = overlayRef.current;
+      if (!path || !overlay) return;
 
       if (tlRef.current) {
         tlRef.current.kill();
         tlRef.current = null;
       }
 
-      const tl = gsap.timeline({ onComplete: onTransitionComplete });
+      // Show the overlay
+      gsap.set(overlay, { visibility: 'visible' });
+
+      // Reset path to start
+      gsap.set(path, { attr: { d: PATH_START } });
+
+      const tl = gsap.timeline({
+        onComplete: () => {
+          onTransitionComplete();
+          // Hide overlay after completion
+          gsap.set(overlay, { visibility: 'hidden' });
+          gsap.set(path, { attr: { d: PATH_START } });
+        },
+      });
 
       if (direction === 'left') {
-        // Forward: slide all panels left. Each panel moves by a different amount.
-        // At rest: panels at [0%, 50%, 100%, 150%] (left positions)
-        // Target: panels at [-50%, 0%, 50%, 100%] — but with parallax offsets
-        panels.forEach((panel, i) => {
-          const shift = -50 * PARALLAX[i]; // percentage of viewport width
-          tl.to(panel, {
-            x: `${shift}vw`,
-            duration: DURATION,
-            ease: EASE,
-          }, 0); // all start at the same time
+        // Forward: wipe from left to right
+        tl.to(path, {
+          attr: { d: PATH_MID },
+          duration: DURATION * 0.5,
+          ease: 'power2.in',
+        })
+        .to(path, {
+          attr: { d: PATH_END },
+          duration: DURATION * 0.5,
+          ease: 'power2.out',
         });
       } else {
-        // Backward: slide all panels right with parallax
-        // Panels start at their "completed" position and slide back
-        panels.forEach((panel, i) => {
-          // Reverse parallax — panel 3 (rightmost) moves fastest back
-          const shift = 50 * PARALLAX[3 - i];
-          tl.to(panel, {
-            x: `${shift}vw`,
-            duration: DURATION,
-            ease: EASE,
-          }, 0);
+        // Backward: wipe from right to left (reverse the path directions)
+        const REV_START = 'M 100 0 H 100 Q 100 50 100 100 H 100 z';
+        const REV_MID   = 'M 100 0 H 50 Q 100 50 50 100 H 100 z';
+        const REV_END   = 'M 100 0 H 0 Q 0 50 0 100 H 100 z';
+
+        gsap.set(path, { attr: { d: REV_START } });
+
+        tl.to(path, {
+          attr: { d: REV_MID },
+          duration: DURATION * 0.5,
+          ease: 'power2.in',
+        })
+        .to(path, {
+          attr: { d: REV_END },
+          duration: DURATION * 0.5,
+          ease: 'power2.out',
         });
       }
 
@@ -88,132 +109,116 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       };
     }, [isTransitioning, nextPhoto, direction, onTransitionComplete]);
 
-    // Reset panels when transition completes
-    useEffect(() => {
-      if (!isTransitioning) {
-        const panels = panelRefs.current.filter(Boolean) as HTMLDivElement[];
-        panels.forEach(panel => gsap.set(panel, { x: 0 }));
-      }
-    }, [isTransitioning]);
+    // Determine what's shown as "current" (base layer) and "next" (overlay)
+    const baseBg = currentBg;
+    const baseFg = currentFg;
+    const baseFont = currentFont;
+    const basePhoto = currentPhoto;
 
-    // Page order based on direction
-    const goingBack = direction === 'right' && isTransitioning;
-    const goingFwd = direction === 'left' && isTransitioning;
-
-    // Panel content assignment
-    // Forward: [currentColor, currentPhoto, nextColor, nextPhoto]
-    // Backward: [nextColor, nextPhoto, currentColor, currentPhoto]
-    const p0Bg = goingBack ? nextBg : currentBg;
-    const p0Fg = goingBack ? nextFg : currentFg;
-    const p0Font = goingBack ? nextFont : currentFont;
-    const p0Photo = null; // color panel
-
-    const p1Photo = goingBack ? nextPhoto : currentPhoto;
-
-    const p2Bg = goingBack ? currentBg : (goingFwd ? nextBg : currentBg);
-    const p2Fg = goingBack ? currentFg : (goingFwd ? nextFg : currentFg);
-    const p2Font = goingBack ? currentFont : (goingFwd ? nextFont : currentFont);
-
-    const p3Photo = goingBack ? currentPhoto : (goingFwd ? nextPhoto : currentPhoto);
+    const overBg = isTransitioning && nextPhoto ? nextBg : currentBg;
+    const overFg = isTransitioning && nextPhoto ? nextFg : currentFg;
+    const overFont = isTransitioning && nextPhoto ? nextFont : currentFont;
+    const overPhoto = isTransitioning && nextPhoto ? nextPhoto : currentPhoto;
 
     return (
       <div ref={ref} className="relative w-full h-full overflow-hidden">
-        {/* Panel 0: Color (left) */}
-        <div
-          ref={el => { panelRefs.current[0] = el; }}
-          className="absolute top-0 h-full flex items-center justify-center"
-          style={{
-            left: '0%',
-            width: '50%',
-            backgroundColor: p0Bg,
-            zIndex: 4,
-          }}
-        >
-          <span
-            className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-[1] tracking-tight"
-            style={{
-              color: p0Fg,
-              fontFamily: p0Font === 'serif' ? 'serif' : `'${p0Font}', serif`,
-            }}
+        {/* Base layer — current photo + color */}
+        <div className="absolute inset-0 flex">
+          {/* Color half */}
+          <div
+            className="w-1/2 h-full flex items-center justify-center"
+            style={{ backgroundColor: baseBg }}
           >
-            {specimenText}
-          </span>
-        </div>
+            <span
+              className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-[1] tracking-tight"
+              style={{
+                color: baseFg,
+                fontFamily: baseFont === 'serif' ? 'serif' : `'${baseFont}', serif`,
+              }}
+            >
+              {specimenText}
+            </span>
+          </div>
 
-        {/* Panel 1: Photo (left-center) */}
-        <div
-          ref={el => { panelRefs.current[1] = el; }}
-          className="absolute top-0 h-full overflow-hidden"
-          style={{
-            left: '50%',
-            width: '50%',
-            zIndex: 3,
-          }}
-        >
-          {p1Photo && (
-            <>
-              <img src={p1Photo.tinyUrl} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
-              <img src={p1Photo.url} alt={p1Photo.alt} className="absolute inset-0 w-full h-full object-cover" />
-            </>
-          )}
-          {p1Photo && (
-            <div className="absolute bottom-3 left-3 right-3 z-10">
-              <div className="text-white/50 text-[10px] font-mono drop-shadow-sm">
-                <a href={p1Photo.photographerUrl} target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-white/90">{p1Photo.photographer}</a>
-                <span> / </span>
-                <a href="https://unsplash.com" target="_blank" rel="noopener noreferrer" className="hover:text-white/70">Unsplash</a>
+          {/* Photo half */}
+          <div className="w-1/2 h-full relative overflow-hidden">
+            {basePhoto && (
+              <>
+                <img src={basePhoto.tinyUrl} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
+                <img src={basePhoto.url} alt={basePhoto.alt} className="absolute inset-0 w-full h-full object-cover" />
+              </>
+            )}
+            {basePhoto && (
+              <div className="absolute bottom-3 left-3 right-3 z-10">
+                <div className="text-white/50 text-[10px] font-mono drop-shadow-sm">
+                  <a href={basePhoto.photographerUrl} target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-white/90">{basePhoto.photographer}</a>
+                  <span> / </span>
+                  <a href="https://unsplash.com" target="_blank" rel="noopener noreferrer" className="hover:text-white/70">Unsplash</a>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
-        {/* Panel 2: Next Color (right-center, off-screen at rest) */}
+        {/* Overlay layer — next photo + color, masked by SVG path */}
         <div
-          ref={el => { panelRefs.current[2] = el; }}
-          className="absolute top-0 h-full flex items-center justify-center"
-          style={{
-            left: '100%',
-            width: '50%',
-            backgroundColor: p2Bg,
-            zIndex: 2,
-          }}
+          ref={overlayRef}
+          className="absolute inset-0"
+          style={{ visibility: 'hidden' }}
         >
-          <span
-            className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-[1] tracking-tight"
-            style={{
-              color: p2Fg,
-              fontFamily: p2Font === 'serif' ? 'serif' : `'${p2Font}', serif`,
-            }}
+          {/* SVG mask/clip */}
+          <svg
+            className="absolute inset-0 w-full h-full"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
           >
-            {specimenText}
-          </span>
-        </div>
+            <defs>
+              <clipPath id="wipe-clip">
+                <path ref={pathRef} d={PATH_START} />
+              </clipPath>
+            </defs>
+          </svg>
 
-        {/* Panel 3: Next Photo (rightmost, off-screen at rest) */}
-        <div
-          ref={el => { panelRefs.current[3] = el; }}
-          className="absolute top-0 h-full overflow-hidden"
-          style={{
-            left: '150%',
-            width: '50%',
-            zIndex: 1,
-          }}
-        >
-          {p3Photo && (
-            <>
-              <img src={p3Photo.tinyUrl} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
-              <img src={p3Photo.url} alt={p3Photo.alt} className="absolute inset-0 w-full h-full object-cover" />
-            </>
-          )}
-          {p3Photo && (
-            <div className="absolute bottom-3 left-3 right-3 z-10">
-              <div className="text-white/50 text-[10px] font-mono drop-shadow-sm">
-                <a href={p3Photo.photographerUrl} target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-white/90">{p3Photo.photographer}</a>
-                <span> / </span>
-                <a href="https://unsplash.com" target="_blank" rel="noopener noreferrer" className="hover:text-white/70">Unsplash</a>
-              </div>
+          {/* Content clipped by the SVG path */}
+          <div
+            className="absolute inset-0 flex"
+            style={{ clipPath: 'url(#wipe-clip)' }}
+          >
+            {/* Color half */}
+            <div
+              className="w-1/2 h-full flex items-center justify-center"
+              style={{ backgroundColor: overBg }}
+            >
+              <span
+                className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-[1] tracking-tight"
+                style={{
+                  color: overFg,
+                  fontFamily: overFont === 'serif' ? 'serif' : `'${overFont}', serif`,
+                }}
+              >
+                {specimenText}
+              </span>
             </div>
-          )}
+
+            {/* Photo half */}
+            <div className="w-1/2 h-full relative overflow-hidden">
+              {overPhoto && (
+                <>
+                  <img src={overPhoto.tinyUrl} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
+                  <img src={overPhoto.url} alt={overPhoto.alt} className="absolute inset-0 w-full h-full object-cover" />
+                </>
+              )}
+              {overPhoto && (
+                <div className="absolute bottom-3 left-3 right-3 z-10">
+                  <div className="text-white/50 text-[10px] font-mono drop-shadow-sm">
+                    <a href={overPhoto.photographerUrl} target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-white/90">{overPhoto.photographer}</a>
+                    <span> / </span>
+                    <a href="https://unsplash.com" target="_blank" rel="noopener noreferrer" className="hover:text-white/70">Unsplash</a>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     );
