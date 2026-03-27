@@ -26,7 +26,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
     const pathRef = useRef<SVGPathElement>(null);
     const photoContainerRef = useRef<HTMLDivElement>(null);
     const prevPhotoId = useRef<string | null>(null);
-    const fontIndexRef = useRef(0);
+    const fontCount = useRef(0);
     const [initialPath, setInitialPath] = useState<string>('');
     const [viewBox, setViewBox] = useState('-10 -10 420 200');
 
@@ -40,22 +40,21 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       }
     }, [font, initialPath]);
 
-    // Morph on font change (same pattern as the working test component)
+    // Morph on font change — exactly like the working test component
     useEffect(() => {
       if (!font || font === 'serif' || !pathRef.current || !initialPath) return;
 
+      fontCount.current++;
+      if (fontCount.current <= 1) return; // skip first (already set via initialPath)
+
       const newPath = getLetterformPath(font);
       if (!newPath) return;
-
-      // Skip the very first render (path is already set via initialPath)
-      fontIndexRef.current++;
-      if (fontIndexRef.current <= 1) return;
 
       gsap.to(pathRef.current, {
         morphSVG: newPath,
         duration: MORPH_DURATION,
         ease: 'power2.inOut',
-        overwrite: true,
+        // NO overwrite — don't kill this tween
       });
 
       computeViewBox(newPath);
@@ -76,17 +75,17 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       setViewBox(`${bbox.x - pad} ${bbox.y - pad} ${bbox.width + pad * 2} ${bbox.height + pad * 2}`);
     }
 
-    // Ease color
+    // Ease background color — targets colorRef (different element, safe)
     useEffect(() => {
       if (colorRef.current) {
         gsap.to(colorRef.current, { backgroundColor: bgHex, duration: COLOR_DURATION, ease: 'power2.out', overwrite: true });
       }
     }, [bgHex]);
 
-    // Ease fill color
+    // Ease fill color — use setAttribute directly to avoid overwrite conflict
     useEffect(() => {
       if (pathRef.current) {
-        gsap.to(pathRef.current, { attr: { fill: fgHex }, duration: COLOR_DURATION, ease: 'power2.out', overwrite: true });
+        pathRef.current.setAttribute('fill', fgHex);
       }
     }, [fgHex]);
 
@@ -117,7 +116,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
               className="w-auto h-[30vh] sm:h-[35vh] md:h-[40vh] max-w-[80%]"
               preserveAspectRatio="xMidYMid meet"
             >
-              <path ref={pathRef} d={initialPath} fill={fgHex} fillRule="evenodd" />
+              <path ref={pathRef} d={initialPath} fill={fgHex} />
             </svg>
           ) : (
             <span
