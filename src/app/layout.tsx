@@ -32,6 +32,12 @@ const instrumentSerif = Instrument_Serif({
   display: 'swap',
 });
 
+const ghostByte = localFont({
+  src: '../fonts/GhostByte-Regular.woff',
+  variable: '--font-ghost-byte',
+  display: 'swap',
+});
+
 export const metadata: Metadata = {
   title: "Color Shift",
   description: "Two colors. Background and foreground. See the contrast. Feel the combination.",
@@ -45,7 +51,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${alphaLyrae.variable} ${departureMono.variable} ${instrumentSerif.variable}`}
+      className={`${geistSans.variable} ${geistMono.variable} ${alphaLyrae.variable} ${departureMono.variable} ${instrumentSerif.variable} ${ghostByte.variable}`}
     >
       <body>{children}</body>
     </html>
