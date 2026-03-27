@@ -6,23 +6,13 @@ import opentype from 'opentype.js';
 const fontCache = new Map<string, opentype.Font>();
 const pathCache = new Map<string, string>();
 
-// Build Google Fonts URL for a single font (full file, not just Aa)
-function getFontFileUrl(fontName: string): string {
-  // Google Fonts CSS API returns the woff2 URL in the CSS.
-  // We'll use the CSS API to get the actual font file URL.
-  const encoded = fontName.replace(/ /g, '+');
-  return `https://fonts.googleapis.com/css2?family=${encoded}&display=swap`;
-}
-
-// Fetch the actual font file URL from Google Fonts CSS (woff2, ttf, or woff)
-async function getFontFileUrlFromCSS(fontName: string): Promise<string | null> {
+// Get TTF URL via our API route (server-side fetch with IE User-Agent to get TTF, not woff2)
+async function getTtfUrl(fontName: string): Promise<string | null> {
   try {
-    const cssUrl = getFontFileUrl(fontName);
-    const res = await fetch(cssUrl);
-    const css = await res.text();
-    // Extract any font file URL from the CSS (woff2, ttf, woff, otf)
-    const match = css.match(/url\((https:\/\/fonts\.gstatic\.com\/[^)]+)\)/);
-    return match ? match[1] : null;
+    const res = await fetch(`/api/font?family=${encodeURIComponent(fontName)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.url ?? null;
   } catch {
     return null;
   }
@@ -33,7 +23,7 @@ async function loadFont(fontName: string): Promise<opentype.Font | null> {
   const cached = fontCache.get(fontName);
   if (cached) return cached;
 
-  const url = await getFontFileUrlFromCSS(fontName);
+  const url = await getTtfUrl(fontName);
   if (!url) return null;
 
   try {
