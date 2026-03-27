@@ -24,6 +24,7 @@ import {
 } from '@/lib/color-engine';
 import { ControlStrip, type PhotoData } from './control-strip';
 import { StripTransition } from './strip-transition';
+import { getFontForPhoto } from '@/lib/fonts';
 
 interface PhotoColors { bg: string; fg: string; }
 
@@ -70,9 +71,11 @@ export function ColorShift() {
   const fgHex = colors.fg;
   const isReady = photoData !== null;
 
-  // Next photo + colors for transition
+  // Next photo + colors + font for transition
   const nextPhoto = pendingIndex !== null ? (photoBuffer[pendingIndex] ?? null) : null;
   const nextColors = nextPhoto ? getColorsForPhoto(nextPhoto) : { bg: '#000000', fg: '#000000' };
+  const currentFont = photoData ? getFontForPhoto(photoData.id) : 'serif';
+  const nextFontFamily = nextPhoto ? getFontForPhoto(nextPhoto.id) : 'serif';
 
   useEffect(() => { setManualColors(null); }, [photoIndex]);
 
@@ -323,6 +326,8 @@ export function ColorShift() {
           currentFg={fgHex}
           nextBg={nextColors.bg}
           nextFg={nextColors.fg}
+          currentFont={currentFont}
+          nextFont={nextFontFamily}
           specimenText={specimenText}
           onTransitionComplete={handleTransitionComplete}
           isTransitioning={isTransitioning}

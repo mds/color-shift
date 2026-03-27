@@ -16,6 +16,8 @@ interface StripTransitionProps {
   currentFg: string;
   nextBg: string;
   nextFg: string;
+  currentFont: string;
+  nextFont: string;
   specimenText: string;
   onTransitionComplete: () => void;
   isTransitioning: boolean;
@@ -24,7 +26,7 @@ interface StripTransitionProps {
 
 export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
   ({ currentPhoto, nextPhoto, currentBg, currentFg, nextBg, nextFg,
-     specimenText, onTransitionComplete, isTransitioning, direction }, ref) => {
+     currentFont, nextFont, specimenText, onTransitionComplete, isTransitioning, direction }, ref) => {
 
     const stripRefs = useRef<(HTMLDivElement | null)[]>([]);
     const tlRef = useRef<gsap.core.Timeline | null>(null);
@@ -85,16 +87,18 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       }
     }, [isTransitioning]);
 
-    // Determine page order based on direction
-    // Left (forward): [current | next]
-    // Right (backward): [next | current]
-    const leftBg = direction === 'right' && isTransitioning ? nextBg : currentBg;
-    const leftFg = direction === 'right' && isTransitioning ? nextFg : currentFg;
-    const leftPhoto = direction === 'right' && isTransitioning ? nextPhoto : currentPhoto;
+    const goingBack = direction === 'right' && isTransitioning;
+    const goingFwd = direction === 'left' && isTransitioning;
 
-    const rightBg = direction === 'right' && isTransitioning ? currentBg : (isTransitioning ? nextBg : currentBg);
-    const rightFg = direction === 'right' && isTransitioning ? currentFg : (isTransitioning ? nextFg : currentFg);
-    const rightPhoto = direction === 'right' && isTransitioning ? currentPhoto : (isTransitioning ? nextPhoto : currentPhoto);
+    const leftBg = goingBack ? nextBg : currentBg;
+    const leftFg = goingBack ? nextFg : currentFg;
+    const leftPhoto = goingBack ? nextPhoto : currentPhoto;
+    const leftFont = goingBack ? nextFont : currentFont;
+
+    const rightBg = goingBack ? currentBg : (goingFwd ? nextBg : currentBg);
+    const rightFg = goingBack ? currentFg : (goingFwd ? nextFg : currentFg);
+    const rightPhoto = goingBack ? currentPhoto : (goingFwd ? nextPhoto : currentPhoto);
+    const rightFont = goingBack ? currentFont : (goingFwd ? nextFont : currentFont);
 
     return (
       <div ref={ref} className="relative w-full h-full overflow-hidden">
@@ -115,7 +119,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
               <div className="w-1/2 h-full flex items-center justify-center" style={{ backgroundColor: leftBg }}>
                 {i === Math.floor(NUM_STRIPS / 2) && (
                   <span className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-none tracking-tight"
-                    style={{ color: leftFg, fontFamily: 'var(--font-ghost-byte), monospace' }}>
+                    style={{ color: leftFg, fontFamily: `'${leftFont}', serif` }}>
                     {specimenText}
                   </span>
                 )}
@@ -141,7 +145,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
               <div className="w-1/2 h-full flex items-center justify-center" style={{ backgroundColor: rightBg }}>
                 {i === Math.floor(NUM_STRIPS / 2) && (
                   <span className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-none tracking-tight"
-                    style={{ color: rightFg, fontFamily: 'var(--font-ghost-byte), monospace' }}>
+                    style={{ color: rightFg, fontFamily: `'${rightFont}', serif` }}>
                     {specimenText}
                   </span>
                 )}
