@@ -3,8 +3,9 @@
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { Flip } from 'gsap/Flip';
+import { MorphSVGPlugin } from 'gsap/MorphSVGPlugin';
 
-gsap.registerPlugin(Flip, useGSAP);
+gsap.registerPlugin(Flip, MorphSVGPlugin, useGSAP);
 gsap.defaults({ ease: 'power2.out', duration: 0.4 });
 
 // Reduced motion: make all GSAP animations effectively instant
