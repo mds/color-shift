@@ -3,11 +3,10 @@
 import { useRef, useState } from 'react';
 import gsap from 'gsap';
 import { MorphSVGPlugin } from 'gsap/MorphSVGPlugin';
-import fontPaths from '@/lib/font-path-data.json';
+import { getLetterformPath } from '@/lib/font-paths';
+import { SPECIMEN_FONTS } from '@/lib/fonts';
 
 gsap.registerPlugin(MorphSVGPlugin);
-
-const fonts = Object.keys(fontPaths) as (keyof typeof fontPaths)[];
 
 export function MorphTest() {
   const pathRef = useRef<SVGPathElement>(null);
@@ -15,8 +14,9 @@ export function MorphTest() {
 
   const handleClick = () => {
     if (!pathRef.current) return;
-    const nextIndex = (index + 1) % fonts.length;
-    const nextPath = fontPaths[fonts[nextIndex]];
+    const nextIndex = (index + 1) % SPECIMEN_FONTS.length;
+    const nextPath = getLetterformPath(SPECIMEN_FONTS[nextIndex]);
+    if (!nextPath) return;
 
     gsap.to(pathRef.current, {
       morphSVG: nextPath,
@@ -27,15 +27,15 @@ export function MorphTest() {
     setIndex(nextIndex);
   };
 
-  const currentFont = fonts[index];
+  const initialPath = getLetterformPath(SPECIMEN_FONTS[0]) ?? 'M0 0';
 
   return (
     <div onClick={handleClick} style={{ cursor: 'pointer', padding: 20, background: '#222', display: 'inline-block' }}>
       <p style={{ color: '#888', marginBottom: 10, fontFamily: 'monospace', fontSize: 11 }}>
-        Click to morph: {currentFont}
+        Click to morph: {SPECIMEN_FONTS[index]}
       </p>
       <svg viewBox="-10 -10 420 200" width="300" height="150">
-        <path ref={pathRef} d={fontPaths[fonts[0]]} fill="#ff6b6b" />
+        <path ref={pathRef} d={initialPath} fill="#ff6b6b" />
       </svg>
     </div>
   );
