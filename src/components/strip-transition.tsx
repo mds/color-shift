@@ -3,6 +3,7 @@
 import { useRef, useEffect, forwardRef } from 'react';
 import gsap from 'gsap';
 import { MorphSVGPlugin } from 'gsap/MorphSVGPlugin';
+import { Draggable } from '@/lib/gsap-config';
 import type { PhotoData } from './control-strip';
 
 gsap.registerPlugin(MorphSVGPlugin);
@@ -11,22 +12,10 @@ const COLOR_DURATION = 0.4;
 const MORPH_DURATION = 0.5;
 
 const SHAPES = [
-  // Circle
-  'M 50,0 A 50,50 0 1,1 50,100 A 50,50 0 1,1 50,0 Z',
-  // Square
-  'M 5,5 L 95,5 L 95,95 L 5,95 Z',
-  // Diamond
-  'M 50,2 L 98,50 L 50,98 L 2,50 Z',
-  // Triangle
-  'M 50,5 L 95,90 L 5,90 Z',
-];
-
-let shapeIndex = 0;
-function getNextShape(): string {
-  const shape = SHAPES[shapeIndex % SHAPES.length];
-  shapeIndex++;
-  return shape;
-}
+  'M 50,0 A 50,50 0 1,1 50,100 A 50,50 0 1,1 50,0 Z',  // Circle
+  'M 5,5 L 95,5 L 95,95 L 5,95 Z',                       // Square
+  'M 50,2 L 98,50 L 50,98 L 2,50 Z',                      // Diamond
+]; // cycle: circle → square → diamond → circle → ...
 
 interface StripTransitionProps {
   photo: PhotoData | null;
@@ -38,10 +27,32 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
   ({ photo, bgHex, fgHex }, ref) => {
 
     const colorRef = useRef<HTMLDivElement>(null);
+    const svgWrapRef = useRef<HTMLDivElement>(null);
     const pathRef = useRef<SVGPathElement>(null);
     const photoContainerRef = useRef<HTMLDivElement>(null);
     const prevPhotoId = useRef<string | null>(null);
-    const hasInitShape = useRef(false);
+    const shapeIndex = useRef(0);
+    const draggableInstance = useRef<Draggable[] | null>(null);
+
+    // Init draggable with inertia
+    useEffect(() => {
+      if (!svgWrapRef.current || !colorRef.current) return;
+
+      draggableInstance.current = Draggable.create(svgWrapRef.current, {
+        type: 'x,y',
+        bounds: colorRef.current,
+        inertia: true,
+        edgeResistance: 0.65,
+        cursor: 'grab',
+        activeCursor: 'grabbing',
+      });
+
+      return () => {
+        if (draggableInstance.current) {
+          draggableInstance.current.forEach(d => d.kill());
+        }
+      };
+    }, []);
 
     // Ease background color
     useEffect(() => {
@@ -55,27 +66,20 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       if (pathRef.current) pathRef.current.setAttribute('fill', fgHex);
     }, [fgHex]);
 
-    // Morph shape + crossfade photo on photo change
+    // Morph shape + crossfade photo
     useEffect(() => {
       if (!photo) return;
       if (photo.id === prevPhotoId.current) return;
       prevPhotoId.current = photo.id;
 
-      const targetShape = getNextShape();
-
-      // Morph shape
+      // Morph to next shape
       if (pathRef.current) {
-        if (!hasInitShape.current) {
-          // First photo — set shape directly
-          pathRef.current.setAttribute('d', targetShape);
-          hasInitShape.current = true;
-        } else {
-          gsap.to(pathRef.current, {
-            morphSVG: targetShape,
-            duration: MORPH_DURATION,
-            ease: 'power2.inOut',
-          });
-        }
+        shapeIndex.current = (shapeIndex.current + 1) % SHAPES.length;
+        gsap.to(pathRef.current, {
+          morphSVG: SHAPES[shapeIndex.current],
+          duration: MORPH_DURATION,
+          ease: 'power2.inOut',
+        });
       }
 
       // Crossfade photo
@@ -92,12 +96,14 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
         {/* Color panel */}
         <div
           ref={colorRef}
-          className="w-1/2 h-full flex items-center justify-center"
+          className="w-1/2 h-full flex items-center justify-center relative"
           style={{ backgroundColor: bgHex }}
         >
-          <svg viewBox="0 0 100 100" className="w-[20vh] h-[20vh]">
-            <path ref={pathRef} d={SHAPES[0]} fill={fgHex} />
-          </svg>
+          <div ref={svgWrapRef} className="touch-none">
+            <svg viewBox="0 0 100 100" className="w-[20vh] h-[20vh]">
+              <path ref={pathRef} d={SHAPES[0]} fill={fgHex} />
+            </svg>
+          </div>
         </div>
 
         {/* Photo panel */}
