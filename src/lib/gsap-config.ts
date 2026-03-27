@@ -6,8 +6,9 @@ import { Flip } from 'gsap/Flip';
 import { MorphSVGPlugin } from 'gsap/MorphSVGPlugin';
 import { Draggable } from 'gsap/Draggable';
 import { InertiaPlugin } from 'gsap/InertiaPlugin';
+import { SplitText } from 'gsap/SplitText';
 
-gsap.registerPlugin(Flip, MorphSVGPlugin, Draggable, InertiaPlugin, useGSAP);
+gsap.registerPlugin(Flip, MorphSVGPlugin, Draggable, InertiaPlugin, SplitText, useGSAP);
 
 export { Draggable };
 gsap.defaults({ ease: 'power2.out', duration: 0.4 });
@@ -23,4 +24,4 @@ if (typeof window !== 'undefined') {
   });
 }
 
-export { gsap, Flip, useGSAP };
+export { gsap, Flip, SplitText, useGSAP };

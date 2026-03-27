@@ -20,11 +20,12 @@ export function ThresholdButtons({
 }: ThresholdButtonsProps) {
   return (
     <div className={`flex items-center gap-1 ${className ?? ''}`}>
-      {thresholds.map((t) => (
+      {thresholds.map((t, i) => (
         <CSButton
-          key={t}
-          label={algorithm === 'apca' ? String(t) : String(t)}
+          key={i}
+          label={String(t)}
           state={activeThreshold === t ? 'selected' : 'default'}
+          animated
           onClick={() => onSelect?.(t)}
         />
       ))}

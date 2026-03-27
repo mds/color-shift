@@ -16,7 +16,7 @@ export function IconButton({ children, onClick, className }: IconButtonProps) {
       onClick={onClick}
       className={`
         flex items-center justify-center px-1.5 py-0.5 rounded-lg shrink-0
-        transition-colors duration-150 hover:bg-[#151515]
+        transition-colors duration-150 hover:bg-[#191919]
         ${className ?? ''}
       `}
     >

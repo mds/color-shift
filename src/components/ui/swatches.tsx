@@ -32,6 +32,7 @@ export function Swatches({
         label={bgHex.replace('#', '').toUpperCase()}
         swatchColor={bgHex}
         state={bgState}
+        animated
         onClick={onBgClick}
       />
       <IconButton onClick={onSwap}>
@@ -41,6 +42,7 @@ export function Swatches({
         label={fgHex.replace('#', '').toUpperCase()}
         swatchColor={fgHex}
         state={fgState}
+        animated
         onClick={onFgClick}
       />
     </div>

@@ -41,6 +41,15 @@ const ghostByte = localFont({
   display: 'swap',
 });
 
+const inputMono = localFont({
+  src: [
+    { path: '../fonts/InputMono-Regular.woff2', weight: '400', style: 'normal' },
+    { path: '../fonts/InputMono-Medium.woff2', weight: '500', style: 'normal' },
+  ],
+  variable: '--font-input-mono',
+  display: 'swap',
+});
+
 export const metadata: Metadata = {
   title: "Color Shift",
   description: "Two colors. Background and foreground. See the contrast. Feel the combination.",
@@ -54,7 +63,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${alphaLyrae.variable} ${departureMono.variable} ${instrumentSerif.variable} ${ghostByte.variable}`}
+      className={`${geistSans.variable} ${geistMono.variable} ${alphaLyrae.variable} ${departureMono.variable} ${instrumentSerif.variable} ${ghostByte.variable} ${inputMono.variable}`}
     >
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
