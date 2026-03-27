@@ -4,10 +4,17 @@ import { useRef, useEffect, forwardRef } from 'react';
 import { gsap } from '@/lib/gsap-config';
 import type { PhotoData } from './control-strip';
 
-const NUM_STRIPS = 5;
-const STAGGER = 0.04;
-const DURATION = 0.5;
+// 4 panels: [current-color] [current-photo] [next-color] [next-photo]
+// Each moves at a different speed for parallax overlap effect.
+// At rest: panels 0+1 fill viewport (50% each). Panels 2+3 off-screen right.
+
+const DURATION = 0.6;
 const EASE = 'power3.inOut';
+
+// Parallax speed multipliers — higher = moves further/faster
+// Panel 0 (current color): fastest exit
+// Panel 3 (next photo): slowest entry
+const PARALLAX = [1.0, 0.85, 0.7, 0.55];
 
 interface StripTransitionProps {
   currentPhoto: PhotoData | null;
@@ -26,47 +33,50 @@ interface StripTransitionProps {
 
 export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
   ({ currentPhoto, nextPhoto, currentBg, currentFg, nextBg, nextFg,
-     currentFont, nextFont, specimenText, onTransitionComplete, isTransitioning, direction }, ref) => {
+     currentFont, nextFont, specimenText, onTransitionComplete,
+     isTransitioning, direction }, ref) => {
 
-    const stripRefs = useRef<(HTMLDivElement | null)[]>([]);
+    const panelRefs = useRef<(HTMLDivElement | null)[]>([]);
     const tlRef = useRef<gsap.core.Timeline | null>(null);
 
     useEffect(() => {
       if (!isTransitioning || !nextPhoto) return;
 
-      const strips = stripRefs.current.filter(Boolean) as HTMLDivElement[];
-      if (strips.length !== NUM_STRIPS) return;
+      const panels = panelRefs.current.filter(Boolean) as HTMLDivElement[];
+      if (panels.length !== 4) return;
 
-      // Kill existing timeline — strips stay wherever they are
       if (tlRef.current) {
         tlRef.current.kill();
         tlRef.current = null;
       }
 
-      const target = direction === 'left' ? -50 : 0;
+      const tl = gsap.timeline({ onComplete: onTransitionComplete });
 
-      // For backward: if strips are at rest (0), snap to -50 first so the
-      // current page is visible (in the right half), then animate to 0.
-      // For forward: strips at rest (0) is correct, animate to -50.
-      // Mid-animation: just redirect from wherever they are.
-      if (direction === 'right') {
-        strips.forEach(strip => {
-          const current = gsap.getProperty(strip, 'xPercent') as number;
-          // If at rest (0) or very close, snap to -50 to set up the backward layout
-          if (Math.abs(current) < 1) {
-            gsap.set(strip, { xPercent: -50 });
-          }
+      if (direction === 'left') {
+        // Forward: slide all panels left. Each panel moves by a different amount.
+        // At rest: panels at [0%, 50%, 100%, 150%] (left positions)
+        // Target: panels at [-50%, 0%, 50%, 100%] — but with parallax offsets
+        panels.forEach((panel, i) => {
+          const shift = -50 * PARALLAX[i]; // percentage of viewport width
+          tl.to(panel, {
+            x: `${shift}vw`,
+            duration: DURATION,
+            ease: EASE,
+          }, 0); // all start at the same time
+        });
+      } else {
+        // Backward: slide all panels right with parallax
+        // Panels start at their "completed" position and slide back
+        panels.forEach((panel, i) => {
+          // Reverse parallax — panel 3 (rightmost) moves fastest back
+          const shift = 50 * PARALLAX[3 - i];
+          tl.to(panel, {
+            x: `${shift}vw`,
+            duration: DURATION,
+            ease: EASE,
+          }, 0);
         });
       }
-
-      const tl = gsap.timeline({ onComplete: onTransitionComplete });
-      tl.to(strips, {
-        xPercent: target,
-        duration: DURATION,
-        stagger: STAGGER,
-        ease: EASE,
-        overwrite: true,
-      });
 
       tlRef.current = tl;
 
@@ -78,113 +88,137 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       };
     }, [isTransitioning, nextPhoto, direction, onTransitionComplete]);
 
-    // Snap strips to resting position when transition completes
+    // Reset panels when transition completes
     useEffect(() => {
       if (!isTransitioning) {
-        const strips = stripRefs.current.filter(Boolean) as HTMLDivElement[];
-        // After completion, current page is always in the left position (xPercent: 0)
-        gsap.set(strips, { xPercent: 0 });
+        const panels = panelRefs.current.filter(Boolean) as HTMLDivElement[];
+        panels.forEach(panel => gsap.set(panel, { x: 0 }));
       }
     }, [isTransitioning]);
 
+    // Page order based on direction
     const goingBack = direction === 'right' && isTransitioning;
     const goingFwd = direction === 'left' && isTransitioning;
 
-    const leftBg = goingBack ? nextBg : currentBg;
-    const leftFg = goingBack ? nextFg : currentFg;
-    const leftPhoto = goingBack ? nextPhoto : currentPhoto;
-    const leftFont = goingBack ? nextFont : currentFont;
+    // Panel content assignment
+    // Forward: [currentColor, currentPhoto, nextColor, nextPhoto]
+    // Backward: [nextColor, nextPhoto, currentColor, currentPhoto]
+    const p0Bg = goingBack ? nextBg : currentBg;
+    const p0Fg = goingBack ? nextFg : currentFg;
+    const p0Font = goingBack ? nextFont : currentFont;
+    const p0Photo = null; // color panel
 
-    const rightBg = goingBack ? currentBg : (goingFwd ? nextBg : currentBg);
-    const rightFg = goingBack ? currentFg : (goingFwd ? nextFg : currentFg);
-    const rightPhoto = goingBack ? currentPhoto : (goingFwd ? nextPhoto : currentPhoto);
-    const rightFont = goingBack ? currentFont : (goingFwd ? nextFont : currentFont);
+    const p1Photo = goingBack ? nextPhoto : currentPhoto;
+
+    const p2Bg = goingBack ? currentBg : (goingFwd ? nextBg : currentBg);
+    const p2Fg = goingBack ? currentFg : (goingFwd ? nextFg : currentFg);
+    const p2Font = goingBack ? currentFont : (goingFwd ? nextFont : currentFont);
+
+    const p3Photo = goingBack ? currentPhoto : (goingFwd ? nextPhoto : currentPhoto);
 
     return (
       <div ref={ref} className="relative w-full h-full overflow-hidden">
-        {Array.from({ length: NUM_STRIPS }, (_, i) => (
-          <div
-            key={i}
-            ref={el => { stripRefs.current[i] = el; }}
-            className="absolute left-0 overflow-hidden"
-            style={{
-              top: `${(i / NUM_STRIPS) * 100}%`,
-              height: `${100 / NUM_STRIPS}%`,
-              width: '200%',
-            }}
-          >
-            {/* Left page */}
-            <div className="absolute top-0 left-0 flex" style={{ width: '50%', height: '100%' }}>
-              {/* Color half */}
-              <div className="w-1/2 h-full flex items-center justify-center" style={{ backgroundColor: leftBg }}>
-                {i === Math.floor(NUM_STRIPS / 2) && (
-                  <div className="h-[200px] sm:h-[240px] md:h-[280px] lg:h-[320px] flex items-end justify-center">
-                    <span className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-[1] tracking-tight"
-                      style={{ color: leftFg, fontFamily: leftFont === 'serif' ? 'serif' : `'${leftFont}', serif` }}>
-                      {specimenText}
-                    </span>
-                  </div>
-                )}
-              </div>
-              {/* Photo half */}
-              <div className="w-1/2 h-full relative overflow-hidden">
-                {leftPhoto && (
-                  <>
-                    <img src={leftPhoto.tinyUrl} alt=""
-                      className="absolute inset-0 w-full object-cover"
-                      style={{ imageRendering: 'pixelated', height: `${NUM_STRIPS * 100}%`, top: `${-i * 100}%` }} />
-                    <img src={leftPhoto.url} alt={leftPhoto.alt}
-                      className="absolute inset-0 w-full object-cover"
-                      style={{ height: `${NUM_STRIPS * 100}%`, top: `${-i * 100}%` }} />
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Right page */}
-            <div className="absolute top-0 flex" style={{ left: '50%', width: '50%', height: '100%' }}>
-              {/* Color half */}
-              <div className="w-1/2 h-full flex items-center justify-center" style={{ backgroundColor: rightBg }}>
-                {i === Math.floor(NUM_STRIPS / 2) && (
-                  <div className="h-[200px] sm:h-[240px] md:h-[280px] lg:h-[320px] flex items-end justify-center">
-                    <span className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-[1] tracking-tight"
-                      style={{ color: rightFg, fontFamily: rightFont === 'serif' ? 'serif' : `'${rightFont}', serif` }}>
-                      {specimenText}
-                    </span>
-                  </div>
-                )}
-              </div>
-              {/* Photo half */}
-              <div className="w-1/2 h-full relative overflow-hidden">
-                {rightPhoto && (
-                  <>
-                    <img src={rightPhoto.tinyUrl} alt=""
-                      className="absolute inset-0 w-full object-cover"
-                      style={{ imageRendering: 'pixelated', height: `${NUM_STRIPS * 100}%`, top: `${-i * 100}%` }} />
-                    <img src={rightPhoto.url} alt={rightPhoto.alt}
-                      className="absolute inset-0 w-full object-cover"
-                      style={{ height: `${NUM_STRIPS * 100}%`, top: `${-i * 100}%` }} />
-                  </>
-                )}
-              </div>
-            </div>
+        {/* Panel 0: Color (left) */}
+        <div
+          ref={el => { panelRefs.current[0] = el; }}
+          className="absolute top-0 h-full flex items-center justify-center"
+          style={{
+            left: '0%',
+            width: '50%',
+            backgroundColor: p0Bg,
+            zIndex: 4,
+          }}
+        >
+          <div className="h-[200px] sm:h-[240px] md:h-[280px] lg:h-[320px] flex items-end justify-center">
+            <span
+              className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-[1] tracking-tight"
+              style={{
+                color: p0Fg,
+                fontFamily: p0Font === 'serif' ? 'serif' : `'${p0Font}', serif`,
+              }}
+            >
+              {specimenText}
+            </span>
           </div>
-        ))}
+        </div>
 
-        {/* Attribution */}
-        {currentPhoto && (
-          <div className="absolute bottom-3 right-3 z-30">
-            <div className="text-white/50 text-[10px] font-mono drop-shadow-sm">
-              <a href={currentPhoto.photographerUrl} target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-white/90">
-                {currentPhoto.photographer}
-              </a>
-              <span> / </span>
-              <a href="https://unsplash.com" target="_blank" rel="noopener noreferrer" className="hover:text-white/70">
-                Unsplash
-              </a>
+        {/* Panel 1: Photo (left-center) */}
+        <div
+          ref={el => { panelRefs.current[1] = el; }}
+          className="absolute top-0 h-full overflow-hidden"
+          style={{
+            left: '50%',
+            width: '50%',
+            zIndex: 3,
+          }}
+        >
+          {p1Photo && (
+            <>
+              <img src={p1Photo.tinyUrl} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
+              <img src={p1Photo.url} alt={p1Photo.alt} className="absolute inset-0 w-full h-full object-cover" />
+            </>
+          )}
+          {p1Photo && (
+            <div className="absolute bottom-3 left-3 right-3 z-10">
+              <div className="text-white/50 text-[10px] font-mono drop-shadow-sm">
+                <a href={p1Photo.photographerUrl} target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-white/90">{p1Photo.photographer}</a>
+                <span> / </span>
+                <a href="https://unsplash.com" target="_blank" rel="noopener noreferrer" className="hover:text-white/70">Unsplash</a>
+              </div>
             </div>
+          )}
+        </div>
+
+        {/* Panel 2: Next Color (right-center, off-screen at rest) */}
+        <div
+          ref={el => { panelRefs.current[2] = el; }}
+          className="absolute top-0 h-full flex items-center justify-center"
+          style={{
+            left: '100%',
+            width: '50%',
+            backgroundColor: p2Bg,
+            zIndex: 2,
+          }}
+        >
+          <div className="h-[200px] sm:h-[240px] md:h-[280px] lg:h-[320px] flex items-end justify-center">
+            <span
+              className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-[1] tracking-tight"
+              style={{
+                color: p2Fg,
+                fontFamily: p2Font === 'serif' ? 'serif' : `'${p2Font}', serif`,
+              }}
+            >
+              {specimenText}
+            </span>
           </div>
-        )}
+        </div>
+
+        {/* Panel 3: Next Photo (rightmost, off-screen at rest) */}
+        <div
+          ref={el => { panelRefs.current[3] = el; }}
+          className="absolute top-0 h-full overflow-hidden"
+          style={{
+            left: '150%',
+            width: '50%',
+            zIndex: 1,
+          }}
+        >
+          {p3Photo && (
+            <>
+              <img src={p3Photo.tinyUrl} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
+              <img src={p3Photo.url} alt={p3Photo.alt} className="absolute inset-0 w-full h-full object-cover" />
+            </>
+          )}
+          {p3Photo && (
+            <div className="absolute bottom-3 left-3 right-3 z-10">
+              <div className="text-white/50 text-[10px] font-mono drop-shadow-sm">
+                <a href={p3Photo.photographerUrl} target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-white/90">{p3Photo.photographer}</a>
+                <span> / </span>
+                <a href="https://unsplash.com" target="_blank" rel="noopener noreferrer" className="hover:text-white/70">Unsplash</a>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
