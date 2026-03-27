@@ -23,63 +23,30 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
   ({ photo, bgHex, fgHex, font, specimenText }, ref) => {
 
     const colorRef = useRef<HTMLDivElement>(null);
-    const pathARef = useRef<SVGPathElement>(null);  // uppercase A
-    const pathaRef = useRef<SVGPathElement>(null);  // lowercase a
+    const pathRef = useRef<SVGPathElement>(null);
     const photoContainerRef = useRef<HTMLDivElement>(null);
     const prevPhotoId = useRef<string | null>(null);
     const [ready, setReady] = useState(false);
-    const [viewBox, setViewBox] = useState('-10 -10 420 200');
+    // Circle path
+    const CIRCLE = 'M 50,0 A 50,50 0 1,1 50,100 A 50,50 0 1,1 50,0 Z';
 
-    // Set initial glyphs or morph to new ones
+    // Morph circle to each font's full path on font change
     useEffect(() => {
       if (!font || font === 'serif') return;
       const glyphs = getFontGlyphs(font);
-      if (!glyphs) return;
+      if (!glyphs || !pathRef.current) return;
 
       if (!ready) {
-        // First font — set paths directly on DOM
-        requestAnimationFrame(() => {
-          if (pathARef.current) pathARef.current.setAttribute('d', glyphs.A);
-          if (pathaRef.current) pathaRef.current.setAttribute('d', glyphs.a);
-          computeViewBox(glyphs.full);
-          setReady(true);
-        });
+        setReady(true);
         return;
       }
 
-      // Morph each glyph independently: A→A, a→a
-      if (pathARef.current) {
-        gsap.to(pathARef.current, {
-          morphSVG: glyphs.A,
-          duration: MORPH_DURATION,
-          ease: 'power2.inOut',
-        });
-      }
-      if (pathaRef.current) {
-        gsap.to(pathaRef.current, {
-          morphSVG: glyphs.a,
-          duration: MORPH_DURATION,
-          ease: 'power2.inOut',
-        });
-      }
-
-      computeViewBox(glyphs.full);
+      gsap.to(pathRef.current, {
+        morphSVG: glyphs.full,
+        duration: MORPH_DURATION,
+        ease: 'power2.inOut',
+      });
     }, [font, ready]);
-
-    function computeViewBox(pathData: string) {
-      if (typeof document === 'undefined') return;
-      const tempSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      const tempPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      tempPath.setAttribute('d', pathData);
-      tempSvg.appendChild(tempPath);
-      tempSvg.style.position = 'absolute';
-      tempSvg.style.visibility = 'hidden';
-      document.body.appendChild(tempSvg);
-      const bbox = tempPath.getBBox();
-      document.body.removeChild(tempSvg);
-      const pad = 10;
-      setViewBox(`${bbox.x - pad} ${bbox.y - pad} ${bbox.width + pad * 2} ${bbox.height + pad * 2}`);
-    }
 
     // Ease background color
     useEffect(() => {
@@ -90,8 +57,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
 
     // Set fill color directly
     useEffect(() => {
-      if (pathARef.current) pathARef.current.setAttribute('fill', fgHex);
-      if (pathaRef.current) pathaRef.current.setAttribute('fill', fgHex);
+      if (pathRef.current) pathRef.current.setAttribute('fill', fgHex);
     }, [fgHex]);
 
     // Crossfade photo
@@ -116,13 +82,11 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
           style={{ backgroundColor: bgHex }}
         >
           <svg
-            viewBox={viewBox}
+            viewBox="-10 -10 420 200"
             className="w-auto h-[30vh] sm:h-[35vh] md:h-[40vh] max-w-[80%]"
             preserveAspectRatio="xMidYMid meet"
-            style={{ opacity: ready ? 1 : 0, transition: 'opacity 0.3s' }}
           >
-            <path ref={pathARef} d="M0 0" fill={fgHex} />
-            <path ref={pathaRef} d="M0 0" fill={fgHex} />
+            <path ref={pathRef} d={CIRCLE} fill={fgHex} />
           </svg>
         </div>
 
