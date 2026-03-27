@@ -3,7 +3,7 @@
 import { useRef, useEffect, useState, forwardRef } from 'react';
 import gsap from 'gsap';
 import { MorphSVGPlugin } from 'gsap/MorphSVGPlugin';
-import { getFontContours } from '@/lib/font-paths';
+import { getFontGlyphs } from '@/lib/font-paths';
 import type { PhotoData } from './control-strip';
 
 gsap.registerPlugin(MorphSVGPlugin);
@@ -23,56 +23,47 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
   ({ photo, bgHex, fgHex, font, specimenText }, ref) => {
 
     const colorRef = useRef<HTMLDivElement>(null);
-    const outerRefs = useRef<(SVGPathElement | null)[]>([]);
-    const innerRefs = useRef<(SVGPathElement | null)[]>([]);
+    const pathARef = useRef<SVGPathElement>(null);  // uppercase A
+    const pathaRef = useRef<SVGPathElement>(null);  // lowercase a
     const photoContainerRef = useRef<HTMLDivElement>(null);
     const prevPhotoId = useRef<string | null>(null);
     const [ready, setReady] = useState(false);
     const [viewBox, setViewBox] = useState('-10 -10 420 200');
-    const [numOuters, setNumOuters] = useState(0);
-    const [numInners, setNumInners] = useState(0);
 
-    // Initialize on first font, morph on subsequent
+    // Set initial glyphs or morph to new ones
     useEffect(() => {
       if (!font || font === 'serif') return;
-      const contours = getFontContours(font);
-      if (!contours) return;
+      const glyphs = getFontGlyphs(font);
+      if (!glyphs) return;
 
       if (!ready) {
-        // First font — set all paths directly on DOM
-        setNumOuters(contours.outers.length);
-        setNumInners(contours.inners.length);
-
-        // Need to wait for refs to be available after render
+        // First font — set paths directly on DOM
         requestAnimationFrame(() => {
-          contours.outers.forEach((d, i) => {
-            if (outerRefs.current[i]) outerRefs.current[i]!.setAttribute('d', d);
-          });
-          contours.inners.forEach((d, i) => {
-            if (innerRefs.current[i]) innerRefs.current[i]!.setAttribute('d', d);
-          });
-          computeViewBox(contours.full);
+          if (pathARef.current) pathARef.current.setAttribute('d', glyphs.A);
+          if (pathaRef.current) pathaRef.current.setAttribute('d', glyphs.a);
+          computeViewBox(glyphs.full);
           setReady(true);
         });
         return;
       }
 
-      // Subsequent fonts — morph each contour pair
-      contours.outers.forEach((d, i) => {
-        const el = outerRefs.current[i];
-        if (el) {
-          gsap.to(el, { morphSVG: d, duration: MORPH_DURATION, ease: 'power2.inOut' });
-        }
-      });
+      // Morph each glyph independently: A→A, a→a
+      if (pathARef.current) {
+        gsap.to(pathARef.current, {
+          morphSVG: glyphs.A,
+          duration: MORPH_DURATION,
+          ease: 'power2.inOut',
+        });
+      }
+      if (pathaRef.current) {
+        gsap.to(pathaRef.current, {
+          morphSVG: glyphs.a,
+          duration: MORPH_DURATION,
+          ease: 'power2.inOut',
+        });
+      }
 
-      contours.inners.forEach((d, i) => {
-        const el = innerRefs.current[i];
-        if (el) {
-          gsap.to(el, { morphSVG: d, duration: MORPH_DURATION, ease: 'power2.inOut' });
-        }
-      });
-
-      computeViewBox(contours.full);
+      computeViewBox(glyphs.full);
     }, [font, ready]);
 
     function computeViewBox(pathData: string) {
@@ -97,10 +88,10 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       }
     }, [bgHex]);
 
-    // Set fill color directly (no tween conflict with morph)
+    // Set fill color directly
     useEffect(() => {
-      outerRefs.current.forEach(el => { if (el) el.setAttribute('fill', fgHex); });
-      innerRefs.current.forEach(el => { if (el) el.setAttribute('fill', fgHex); });
+      if (pathARef.current) pathARef.current.setAttribute('fill', fgHex);
+      if (pathaRef.current) pathaRef.current.setAttribute('fill', fgHex);
     }, [fgHex]);
 
     // Crossfade photo
@@ -130,24 +121,8 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
             preserveAspectRatio="xMidYMid meet"
             style={{ opacity: ready ? 1 : 0, transition: 'opacity 0.3s' }}
           >
-            {/* Outer contours (letter bodies) */}
-            {Array.from({ length: numOuters }, (_, i) => (
-              <path
-                key={`outer-${i}`}
-                ref={el => { outerRefs.current[i] = el; }}
-                d="M0 0"
-                fill={fgHex}
-              />
-            ))}
-            {/* Inner contours (counters/holes) — rendered as cutouts */}
-            {Array.from({ length: numInners }, (_, i) => (
-              <path
-                key={`inner-${i}`}
-                ref={el => { innerRefs.current[i] = el; }}
-                d="M0 0"
-                fill={fgHex}
-              />
-            ))}
+            <path ref={pathARef} d="M0 0" fill={fgHex} />
+            <path ref={pathaRef} d="M0 0" fill={fgHex} />
           </svg>
         </div>
 
