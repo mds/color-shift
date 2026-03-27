@@ -117,7 +117,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
               className="w-auto h-[30vh] sm:h-[35vh] md:h-[40vh] max-w-[80%]"
               preserveAspectRatio="xMidYMid meet"
             >
-              <path ref={pathRef} d={initialPath} fill={fgHex} />
+              <path ref={pathRef} d={initialPath} fill={fgHex} fillRule="evenodd" />
             </svg>
           ) : (
             <span
