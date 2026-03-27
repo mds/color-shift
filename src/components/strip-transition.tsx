@@ -1,10 +1,11 @@
 'use client';
 
-import { useRef, useEffect, forwardRef } from 'react';
+import { useRef, useEffect, useState, forwardRef, useCallback } from 'react';
 import gsap from 'gsap';
 import type { PhotoData } from './control-strip';
 
 const COLOR_DURATION = 0.4;
+const TOGGLE_DURATION = 0.35;
 
 interface StripTransitionProps {
   photo: PhotoData | null;
@@ -17,8 +18,10 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
 
     const colorRef = useRef<HTMLDivElement>(null);
     const textRef = useRef<HTMLSpanElement>(null);
+    const circleRef = useRef<HTMLDivElement>(null);
     const photoContainerRef = useRef<HTMLDivElement>(null);
     const prevPhotoId = useRef<string | null>(null);
+    const [showText, setShowText] = useState(true);
 
     // Ease background color
     useEffect(() => {
@@ -26,13 +29,6 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
         gsap.to(colorRef.current, { backgroundColor: bgHex, duration: COLOR_DURATION, ease: 'power2.out', overwrite: true });
       }
     }, [bgHex]);
-
-    // Ease text color
-    useEffect(() => {
-      if (textRef.current) {
-        gsap.to(textRef.current, { color: fgHex, duration: COLOR_DURATION, ease: 'power2.out', overwrite: true });
-      }
-    }, [fgHex]);
 
     // Crossfade photo
     useEffect(() => {
@@ -47,17 +43,43 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       }
     }, [photo]);
 
+    const toggle = useCallback(() => {
+      const text = textRef.current;
+      const circle = circleRef.current;
+      if (!text || !circle) return;
+
+      if (showText) {
+        // Hide text, show circle
+        gsap.to(text, { scale: 0.5, opacity: 0, duration: TOGGLE_DURATION, ease: 'power2.in' });
+        gsap.fromTo(circle,
+          { scale: 0.5, opacity: 0 },
+          { scale: 1, opacity: 1, duration: TOGGLE_DURATION, ease: 'power2.out', delay: 0.1 }
+        );
+      } else {
+        // Hide circle, show text
+        gsap.to(circle, { scale: 0.5, opacity: 0, duration: TOGGLE_DURATION, ease: 'power2.in' });
+        gsap.fromTo(text,
+          { scale: 0.5, opacity: 0 },
+          { scale: 1, opacity: 1, duration: TOGGLE_DURATION, ease: 'power2.out', delay: 0.1 }
+        );
+      }
+
+      setShowText(!showText);
+    }, [showText]);
+
     return (
       <div ref={ref} className="relative w-full h-full overflow-hidden flex">
         {/* Color panel */}
         <div
           ref={colorRef}
-          className="w-1/2 h-full flex items-center justify-center"
+          className="w-1/2 h-full flex items-center justify-center relative cursor-pointer"
           style={{ backgroundColor: bgHex }}
+          onClick={toggle}
         >
+          {/* Text — visible by default */}
           <span
             ref={textRef}
-            className="text-[80px] sm:text-[120px] md:text-[160px] lg:text-[200px] leading-[1] tracking-tight select-none"
+            className="absolute text-[80px] sm:text-[120px] md:text-[160px] lg:text-[200px] leading-[1] tracking-tight select-none"
             style={{
               color: fgHex,
               fontFamily: "'Instrument Serif', serif",
@@ -65,6 +87,17 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
           >
             Aa
           </span>
+
+          {/* Circle — hidden by default */}
+          <div
+            ref={circleRef}
+            className="absolute"
+            style={{ opacity: 0, transform: 'scale(0.5)' }}
+          >
+            <svg viewBox="0 0 100 100" className="w-[20vh] h-[20vh]">
+              <circle cx="50" cy="50" r="50" fill={fgHex} />
+            </svg>
+          </div>
         </div>
 
         {/* Photo panel */}
