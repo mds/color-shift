@@ -129,17 +129,15 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
             zIndex: 4,
           }}
         >
-          <div className="h-[200px] sm:h-[240px] md:h-[280px] lg:h-[320px] flex items-end justify-center">
-            <span
-              className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-[1] tracking-tight"
-              style={{
-                color: p0Fg,
-                fontFamily: p0Font === 'serif' ? 'serif' : `'${p0Font}', serif`,
-              }}
-            >
-              {specimenText}
-            </span>
-          </div>
+          <span
+            className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-[1] tracking-tight"
+            style={{
+              color: p0Fg,
+              fontFamily: p0Font === 'serif' ? 'serif' : `'${p0Font}', serif`,
+            }}
+          >
+            {specimenText}
+          </span>
         </div>
 
         {/* Panel 1: Photo (left-center) */}
@@ -180,17 +178,15 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
             zIndex: 2,
           }}
         >
-          <div className="h-[200px] sm:h-[240px] md:h-[280px] lg:h-[320px] flex items-end justify-center">
-            <span
-              className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-[1] tracking-tight"
-              style={{
-                color: p2Fg,
-                fontFamily: p2Font === 'serif' ? 'serif' : `'${p2Font}', serif`,
-              }}
-            >
-              {specimenText}
-            </span>
-          </div>
+          <span
+            className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-[1] tracking-tight"
+            style={{
+              color: p2Fg,
+              fontFamily: p2Font === 'serif' ? 'serif' : `'${p2Font}', serif`,
+            }}
+          >
+            {specimenText}
+          </span>
         </div>
 
         {/* Panel 3: Next Photo (rightmost, off-screen at rest) */}
