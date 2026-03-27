@@ -55,13 +55,19 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
         {/* Color panel */}
         <div
           ref={colorRef}
-          className="w-1/2 h-full flex items-center justify-center"
+          className="w-1/2 h-full flex items-end justify-center pb-[30vh]"
           style={{ backgroundColor: bgHex }}
         >
           <span
             ref={textRef}
-            className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-[1] tracking-tight"
-            style={{ color: fgHex, fontFamily: fontStyle }}
+            className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] tracking-tight"
+            style={{
+              color: fgHex,
+              fontFamily: fontStyle,
+              lineHeight: 1,
+              display: 'inline-block',
+              verticalAlign: 'baseline',
+            }}
           >
             {specimenText}
           </span>

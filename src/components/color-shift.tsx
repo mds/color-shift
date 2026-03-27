@@ -270,20 +270,24 @@ export function ColorShift() {
   const onDragStart = useCallback(() => { isDraggingRef.current = true; }, []);
   const onDragEnd = useCallback(() => { isDraggingRef.current = false; }, []);
 
-  // ── Keyboard ──
+  // ── Keyboard — use ref for index so handler always reads latest ──
+  const photoIndexRef = useRef(photoIndex);
+  photoIndexRef.current = photoIndex;
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' && target !== specimenInputRef.current) return;
-      if (e.key === 'ArrowRight') { e.preventDefault(); navigateTo(photoIndex - 1); }
-      if (e.key === 'ArrowLeft') { e.preventDefault(); navigateTo(photoIndex + 1); }
+      const idx = photoIndexRef.current;
+      if (e.key === 'ArrowLeft') { e.preventDefault(); navigateTo(idx + 1); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); navigateTo(idx - 1); }
       if (e.code === 'Space' && target !== specimenInputRef.current) { e.preventDefault(); injectPhoto(); }
       if ((e.key === 's' || e.key === 'S') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) { e.preventDefault(); swap(); }
       if ((e.key === 't' || e.key === 'T') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) { e.preventDefault(); toggleTheme(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [navigateTo, photoIndex, injectPhoto, swap, toggleTheme]);
+  }, [navigateTo, injectPhoto, swap, toggleTheme]);
 
   return (
     <div
