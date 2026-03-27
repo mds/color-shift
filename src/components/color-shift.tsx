@@ -196,15 +196,22 @@ export function ColorShift() {
   // ── Navigation — triggers strip transition ──
 
   const navigateTo = useCallback((newIndex: number) => {
-    if (isTransitioning || newIndex === photoIndex) return;
     if (newIndex < 0 || newIndex >= photoBuffer.length) return;
 
-    setTransitionDirection(newIndex > photoIndex ? 'left' : 'right');
+    // If already transitioning, commit the current pending state first
+    if (isTransitioning && pendingIndex !== null) {
+      setPhotoIndex(pendingIndex);
+    }
+
+    const fromIndex = isTransitioning && pendingIndex !== null ? pendingIndex : photoIndex;
+    if (newIndex === fromIndex) return;
+
+    setTransitionDirection(newIndex > fromIndex ? 'left' : 'right');
     setPendingIndex(newIndex);
     setIsTransitioning(true);
     maybeRefill(newIndex, photoBuffer);
     preloadImages(photoBuffer.slice(newIndex + 1, newIndex + 3));
-  }, [isTransitioning, photoIndex, photoBuffer, maybeRefill, preloadImages]);
+  }, [isTransitioning, pendingIndex, photoIndex, photoBuffer, maybeRefill, preloadImages]);
 
   const handleTransitionComplete = useCallback(() => {
     if (pendingIndex !== null) {
@@ -216,7 +223,6 @@ export function ColorShift() {
 
   // Inject photo
   const injectPhoto = useCallback(async () => {
-    if (isTransitioning) return;
     const photos = await fetchPhotos(1);
     if (photos.length === 0) return;
     const newPhoto = photos[0];
@@ -289,15 +295,16 @@ export function ColorShift() {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' && target !== specimenInputRef.current) return;
-      if (e.key === 'ArrowRight') { e.preventDefault(); navigateTo(photoIndex + 1); }
-      if (e.key === 'ArrowLeft') { e.preventDefault(); navigateTo(photoIndex - 1); }
+      const effectiveIndex = pendingIndex ?? photoIndex;
+      if (e.key === 'ArrowRight') { e.preventDefault(); navigateTo(effectiveIndex + 1); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); navigateTo(effectiveIndex - 1); }
       if (e.code === 'Space' && target !== specimenInputRef.current) { e.preventDefault(); injectPhoto(); }
       if ((e.key === 's' || e.key === 'S') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) { e.preventDefault(); swap(); }
       if ((e.key === 't' || e.key === 'T') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) { e.preventDefault(); toggleTheme(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [navigateTo, photoIndex, injectPhoto, swap, toggleTheme]);
+  }, [navigateTo, photoIndex, pendingIndex, injectPhoto, swap, toggleTheme]);
 
   return (
     <div
