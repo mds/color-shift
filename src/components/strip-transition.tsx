@@ -10,28 +10,28 @@ gsap.registerPlugin(MorphSVGPlugin);
 const COLOR_DURATION = 0.4;
 const MORPH_DURATION = 0.5;
 
-// All shapes defined in a 100x100 viewBox, centered at 50,50
+// All shapes: soft, rounded, organic — no hard edges, no stars
 const SHAPES = [
   // Circle
   'M 50,0 A 50,50 0 1,1 50,100 A 50,50 0 1,1 50,0 Z',
-  // Square
-  'M 5,5 L 95,5 L 95,95 L 5,95 Z',
-  // Diamond
-  'M 50,2 L 98,50 L 50,98 L 2,50 Z',
-  // Triangle
-  'M 50,5 L 95,90 L 5,90 Z',
-  // Hexagon
-  'M 50,2 L 93,27 L 93,73 L 50,98 L 7,73 L 7,27 Z',
-  // Star
-  'M 50,5 L 61,35 L 95,35 L 68,57 L 79,91 L 50,70 L 21,91 L 32,57 L 5,35 L 39,35 Z',
-  // Rounded square
-  'M 20,5 Q 5,5 5,20 L 5,80 Q 5,95 20,95 L 80,95 Q 95,95 95,80 L 95,20 Q 95,5 80,5 Z',
-  // Pentagon
-  'M 50,2 L 97,38 L 79,95 L 21,95 L 3,38 Z',
-  // Cross
-  'M 35,5 L 65,5 L 65,35 L 95,35 L 95,65 L 65,65 L 65,95 L 35,95 L 35,65 L 5,65 L 5,35 L 35,35 Z',
-  // Octagon
-  'M 30,5 L 70,5 L 95,30 L 95,70 L 70,95 L 30,95 L 5,70 L 5,30 Z',
+  // Ellipse (wide)
+  'M 50,15 A 45,35 0 1,1 50,85 A 45,35 0 1,1 50,15 Z',
+  // Ellipse (tall)
+  'M 50,2 A 30,48 0 1,1 50,98 A 30,48 0 1,1 50,2 Z',
+  // Squircle (rounded square)
+  'M 50,2 C 85,2 98,15 98,50 C 98,85 85,98 50,98 C 15,98 2,85 2,50 C 2,15 15,2 50,2 Z',
+  // Soft diamond
+  'M 50,2 C 65,2 98,35 98,50 C 98,65 65,98 50,98 C 35,98 2,65 2,50 C 2,35 35,2 50,2 Z',
+  // Blob 1
+  'M 50,5 C 75,0 100,20 95,50 C 100,80 75,100 50,95 C 25,100 0,80 5,50 C 0,20 25,0 50,5 Z',
+  // Blob 2 (organic)
+  'M 45,3 C 70,0 95,15 97,45 C 99,75 80,98 50,97 C 20,96 3,78 2,48 C 1,18 20,6 45,3 Z',
+  // Egg
+  'M 50,5 C 80,5 95,30 95,55 C 95,80 75,98 50,98 C 25,98 5,80 5,55 C 5,30 20,5 50,5 Z',
+  // Pill (horizontal)
+  'M 30,20 A 30,30 0 0,1 30,80 L 70,80 A 30,30 0 0,1 70,20 Z',
+  // Soft triangle
+  'M 50,8 C 60,8 90,75 85,85 C 80,95 20,95 15,85 C 10,75 40,8 50,8 Z',
 ];
 
 function getShapeForPhoto(photoId: string): string {
