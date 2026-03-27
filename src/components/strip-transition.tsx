@@ -4,15 +4,18 @@ import { useRef, useEffect, forwardRef } from 'react';
 import { gsap } from '@/lib/gsap-config';
 import type { PhotoData } from './control-strip';
 
-// 4-panel parallax slide — GPU-accelerated translateX transforms only.
-// Each panel slides at a different speed for parallax depth.
+// 4-panel parallax slide — GPU-accelerated translateX only.
+//
+// At rest (forward direction):
+//   [nextColor @ -100%] [nextPhoto @ -50%] [currentColor @ 0%] [currentPhoto @ 50%]
+//   Off-screen left ←                     → Visible viewport
+//
+// On transition (forward/left): all slide RIGHT by ~100vw at different speeds.
+//   Next panels slide into viewport, current panels slide out right.
 
 const DURATION = 0.55;
 const EASE = 'power3.out';
-
-// Speed multipliers — creates the parallax offset between panels
-// Higher = moves more distance = arrives/leaves faster
-const SPEEDS = [1.15, 1.0, 0.85, 0.7];
+const SPEEDS = [0.7, 0.85, 1.0, 1.15]; // panel 0 slowest, panel 3 fastest
 
 interface StripTransitionProps {
   currentPhoto: PhotoData | null;
@@ -50,19 +53,18 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
 
       const tl = gsap.timeline({ onComplete: onTransitionComplete });
 
-      // Each panel moves by viewportWidth * speed multiplier
-      // Using vw units for the translate distance
       panels.forEach((panel, i) => {
-        const distance = 100 * SPEEDS[i]; // in vw
-        const target = direction === 'left' ? -distance : distance;
+        const distance = 100 * SPEEDS[i];
+        // Forward (left arrow = advance): panels slide RIGHT (positive x)
+        // Backward (right arrow = go back): panels slide LEFT (negative x)
+        const target = direction === 'left' ? distance : -distance;
 
-        // Animate from current position (for interruptibility)
         tl.to(panel, {
           x: `${target}vw`,
           duration: DURATION,
           ease: EASE,
-          force3D: true, // ensure GPU layer
-        }, 0); // all start simultaneously
+          force3D: true,
+        }, 0);
       });
 
       tlRef.current = tl;
@@ -75,7 +77,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       };
     }, [isTransitioning, nextPhoto, direction, onTransitionComplete]);
 
-    // Reset panels after transition completes and base layer has re-rendered
+    // Reset after transition
     useEffect(() => {
       if (!isTransitioning) {
         const panels = panelRefs.current.filter(Boolean) as HTMLDivElement[];
@@ -83,26 +85,28 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       }
     }, [isTransitioning]);
 
-    // Content: panels are always [nextColor, nextPhoto, currentColor, currentPhoto]
-    // positioned at [-100vw, -50vw, 0, 50vw] so current fills the viewport at rest.
-    // On forward transition, everything slides left by ~100vw, bringing next into view.
-
     const nextBgVal = isTransitioning && nextPhoto ? nextBg : currentBg;
     const nextFgVal = isTransitioning && nextPhoto ? nextFg : currentFg;
     const nextFontVal = isTransitioning && nextPhoto ? nextFont : currentFont;
     const nextPhotoVal = isTransitioning && nextPhoto ? nextPhoto : currentPhoto;
 
+    // Position panels based on direction:
+    // Forward (left): next is LEFT of current, slides right into view
+    // Backward (right): next is RIGHT of current, slides left into view
+    const nextColorLeft = direction === 'left' ? '-100%' : '100%';
+    const nextPhotoLeft = direction === 'left' ? '-50%' : '150%';
+
     return (
       <div ref={ref} className="relative w-full h-full overflow-hidden">
-        {/* Panel 0: NEXT color — starts off-screen left (or right for reverse) */}
+        {/* Panel 0: NEXT color — off-screen */}
         <div
           ref={el => { panelRefs.current[0] = el; }}
           className="absolute top-0 h-full flex items-center justify-center will-change-transform"
           style={{
             width: '50%',
-            left: direction === 'left' ? '-50%' : '100%',
+            left: nextColorLeft,
             backgroundColor: nextBgVal,
-            zIndex: 4,
+            zIndex: 2,
           }}
         >
           <span
@@ -116,14 +120,14 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
           </span>
         </div>
 
-        {/* Panel 1: NEXT photo — starts off-screen left (or right for reverse) */}
+        {/* Panel 1: NEXT photo — off-screen, adjacent to panel 0 */}
         <div
           ref={el => { panelRefs.current[1] = el; }}
           className="absolute top-0 h-full overflow-hidden will-change-transform"
           style={{
             width: '50%',
-            left: direction === 'left' ? '0%' : '50%',
-            zIndex: 3,
+            left: nextPhotoLeft,
+            zIndex: 1,
           }}
         >
           {nextPhotoVal && (
@@ -134,7 +138,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
           )}
         </div>
 
-        {/* Panel 2: CURRENT color — starts in viewport */}
+        {/* Panel 2: CURRENT color — in viewport, left half */}
         <div
           ref={el => { panelRefs.current[2] = el; }}
           className="absolute top-0 h-full flex items-center justify-center will-change-transform"
@@ -142,7 +146,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
             width: '50%',
             left: '0%',
             backgroundColor: currentBg,
-            zIndex: 2,
+            zIndex: 4,
           }}
         >
           <span
@@ -156,14 +160,14 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
           </span>
         </div>
 
-        {/* Panel 3: CURRENT photo — starts in viewport */}
+        {/* Panel 3: CURRENT photo — in viewport, right half */}
         <div
           ref={el => { panelRefs.current[3] = el; }}
           className="absolute top-0 h-full overflow-hidden will-change-transform"
           style={{
             width: '50%',
             left: '50%',
-            zIndex: 1,
+            zIndex: 3,
           }}
         >
           {currentPhoto && (
