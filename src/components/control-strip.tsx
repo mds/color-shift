@@ -243,6 +243,17 @@ export function ControlStrip(props: ControlStripProps) {
             <span className={`font-mono text-[11px] ${textMuted}`}>{scoreLabel}</span>
           </button>
 
+          {/* Algorithm toggle — always visible */}
+          <button
+            onClick={onToggleContrastAlgorithm}
+            className={`font-mono text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+              isDark ? 'bg-white/8 text-white/50 hover:text-white/70' : 'bg-black/5 text-black/50 hover:text-black/70'
+            }`}
+            title="Toggle contrast algorithm"
+          >
+            {contrastAlgorithm === 'WCAG2' ? 'WCAG 2' : 'APCA'}
+          </button>
+
           {/* Spacer */}
           <div className="flex-1" />
 
