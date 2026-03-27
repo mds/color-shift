@@ -221,7 +221,11 @@ export function ColorShift() {
       setPhotoIndex(pendingIndex);
     }
     setPendingIndex(null);
-    setIsTransitioning(false);
+    // Delay clearing isTransitioning by one frame so the base layer
+    // renders with the new photo before the overlay hides
+    requestAnimationFrame(() => {
+      setIsTransitioning(false);
+    });
   }, [pendingIndex]);
 
   // Inject photo
@@ -299,8 +303,8 @@ export function ColorShift() {
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' && target !== specimenInputRef.current) return;
       const effectiveIndex = pendingIndex ?? photoIndex;
-      if (e.key === 'ArrowRight') { e.preventDefault(); navigateTo(effectiveIndex + 1); }
-      if (e.key === 'ArrowLeft') { e.preventDefault(); navigateTo(effectiveIndex - 1); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); navigateTo(effectiveIndex - 1); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); navigateTo(effectiveIndex + 1); }
       if (e.code === 'Space' && target !== specimenInputRef.current) { e.preventDefault(); injectPhoto(); }
       if ((e.key === 's' || e.key === 'S') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) { e.preventDefault(); swap(); }
       if ((e.key === 't' || e.key === 'T') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) { e.preventDefault(); toggleTheme(); }

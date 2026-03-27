@@ -111,13 +111,9 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
 
       const tl = gsap.timeline({
         onComplete: () => {
+          // Keep overlay panels visible — they'll be hidden when
+          // isTransitioning becomes false (after base layer re-renders)
           onTransitionComplete();
-          panels.forEach(p => {
-            if (p) {
-              p.style.clipPath = 'none';
-              gsap.set(p, { visibility: 'hidden' });
-            }
-          });
         },
       });
 
