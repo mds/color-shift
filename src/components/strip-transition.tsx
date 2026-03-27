@@ -35,46 +35,38 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       const strips = stripRefs.current.filter(Boolean) as HTMLDivElement[];
       if (strips.length !== NUM_STRIPS) return;
 
-      // Kill any existing timeline immediately
+      // Kill existing timeline — strips stay wherever they are
       if (tlRef.current) {
         tlRef.current.kill();
         tlRef.current = null;
       }
 
-      // Forward (left): current is at 0%, next is at +50%, slide to -50%
-      // Backward (right): current is at -50% (next is at left), start at 0%, slide to +50%
-      //
-      // Layout: [next-page | current-page] when going right
-      //         [current-page | next-page] when going left
-      //
-      // For left:  start xPercent=0, end xPercent=-50
-      // For right: start xPercent=-50, end xPercent=0
-      //   But the pages are always [page-left | page-right] in DOM.
-      //   So for "right" direction, the "next" page should be on the LEFT.
+      const target = direction === 'left' ? -50 : 0;
 
-      if (direction === 'left') {
-        // Next is to the right. Start at 0, slide to -50.
-        gsap.set(strips, { xPercent: 0 });
-        const tl = gsap.timeline({ onComplete: onTransitionComplete });
-        tl.to(strips, {
-          xPercent: -50,
-          duration: DURATION,
-          stagger: STAGGER,
-          ease: EASE,
+      // For backward: if strips are at rest (0), snap to -50 first so the
+      // current page is visible (in the right half), then animate to 0.
+      // For forward: strips at rest (0) is correct, animate to -50.
+      // Mid-animation: just redirect from wherever they are.
+      if (direction === 'right') {
+        strips.forEach(strip => {
+          const current = gsap.getProperty(strip, 'xPercent') as number;
+          // If at rest (0) or very close, snap to -50 to set up the backward layout
+          if (Math.abs(current) < 1) {
+            gsap.set(strip, { xPercent: -50 });
+          }
         });
-        tlRef.current = tl;
-      } else {
-        // Next is to the left. Start at -50, slide to 0.
-        gsap.set(strips, { xPercent: -50 });
-        const tl = gsap.timeline({ onComplete: onTransitionComplete });
-        tl.to(strips, {
-          xPercent: 0,
-          duration: DURATION,
-          stagger: STAGGER,
-          ease: EASE,
-        });
-        tlRef.current = tl;
       }
+
+      const tl = gsap.timeline({ onComplete: onTransitionComplete });
+      tl.to(strips, {
+        xPercent: target,
+        duration: DURATION,
+        stagger: STAGGER,
+        ease: EASE,
+        overwrite: true,
+      });
+
+      tlRef.current = tl;
 
       return () => {
         if (tlRef.current) {
@@ -84,10 +76,11 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       };
     }, [isTransitioning, nextPhoto, direction, onTransitionComplete]);
 
-    // Reset strips when not transitioning
+    // Snap strips to resting position when transition completes
     useEffect(() => {
       if (!isTransitioning) {
         const strips = stripRefs.current.filter(Boolean) as HTMLDivElement[];
+        // After completion, current page is always in the left position (xPercent: 0)
         gsap.set(strips, { xPercent: 0 });
       }
     }, [isTransitioning]);
