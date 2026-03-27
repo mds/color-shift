@@ -55,19 +55,18 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       const circle = circleRef.current;
       if (!text || !circle) return;
 
-      if (showText) {
-        gsap.to(text, { scale: 0.5, opacity: 0, duration: TOGGLE_DURATION, ease: 'power2.in' });
-        gsap.fromTo(circle,
-          { scale: 0.5, opacity: 0 },
-          { scale: 1, opacity: 1, duration: TOGGLE_DURATION, ease: 'power2.out', delay: 0.1 }
+      const active = showText ? text : circle;
+      const incoming = showText ? circle : text;
+
+      // Continue from the squished state → grow slightly → shrink to 0 + fade
+      const tl = gsap.timeline();
+      tl.to(active, { scale: 1.05, duration: 0.1, ease: 'power2.out' })
+        .to(active, { scale: 0, opacity: 0, duration: 0.25, ease: 'power2.in' })
+        .fromTo(incoming,
+          { scale: 0, opacity: 0 },
+          { scale: 1, opacity: 1, duration: TOGGLE_DURATION, ease: 'back.out(1.4)' },
+          '-=0.1'
         );
-      } else {
-        gsap.to(circle, { scale: 0.5, opacity: 0, duration: TOGGLE_DURATION, ease: 'power2.in' });
-        gsap.fromTo(text,
-          { scale: 0.5, opacity: 0 },
-          { scale: 1, opacity: 1, duration: TOGGLE_DURATION, ease: 'power2.out', delay: 0.1 }
-        );
-      }
 
       setShowText(!showText);
     }, [showText]);
