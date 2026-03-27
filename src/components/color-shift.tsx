@@ -35,6 +35,7 @@ export function ColorShift() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [sliderMode, setSliderMode] = useState<SliderMode>('OKLCH');
   const [contrastAlgorithm, setContrastAlgorithm] = useState<ContrastAlgorithm>('WCAG2');
+  const [controlsState, setControlsState] = useState<'default' | 'score' | 'export'>('default');
 
   // ── Photo state ──
   const [photoBuffer, setPhotoBuffer] = useState<PhotoData[]>([]);
@@ -315,7 +316,7 @@ export function ColorShift() {
           { label: 'C', value: 0.06, min: 0, max: 0.4, step: 0.001, displayValue: '0.060', trackGradient: 'linear-gradient(90deg, gray, teal)' },
           { label: 'H', value: 183, min: 0, max: 360, step: 1, displayValue: '183', trackGradient: 'linear-gradient(90deg, red, yellow, green, cyan, blue, magenta, red)' },
         ]}
-        controlsState="default"
+        controlsState={controlsState}
         bgHex={bgHex}
         fgHex={fgHex}
         algorithm={contrastAlgorithm === 'WCAG2' ? 'wcag' : 'apca'}
@@ -326,12 +327,12 @@ export function ColorShift() {
         onBgClick={() => {}}
         onFgClick={() => {}}
         onSwap={swap}
-        onResultsToggle={() => {}}
+        onResultsToggle={() => setControlsState(s => s === 'score' ? 'default' : 'score')}
         onAlgorithmToggle={toggleContrastAlgorithm}
         onThresholdSelect={bumpTo}
         onLeftArrow={() => navigateTo(photoIndex - 1)}
         onRightArrow={() => navigateTo(photoIndex + 1)}
-        onExportToggle={() => {}}
+        onExportToggle={() => setControlsState(s => s === 'export' ? 'default' : 'export')}
         onCopyUrl={copyExport}
         onDownloadMd={() => {}}
         onExport={() => {}}
