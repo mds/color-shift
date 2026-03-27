@@ -1,51 +1,24 @@
 'use client';
 
-import { useRef, useEffect, useState, forwardRef } from 'react';
+import { useRef, useEffect, forwardRef } from 'react';
 import gsap from 'gsap';
-import { MorphSVGPlugin } from 'gsap/MorphSVGPlugin';
-import { getFontGlyphs } from '@/lib/font-paths';
 import type { PhotoData } from './control-strip';
 
-gsap.registerPlugin(MorphSVGPlugin);
-
 const COLOR_DURATION = 0.4;
-const MORPH_DURATION = 0.6;
+const CIRCLE = 'M 50,0 A 50,50 0 1,1 50,100 A 50,50 0 1,1 50,0 Z';
 
 interface StripTransitionProps {
   photo: PhotoData | null;
   bgHex: string;
   fgHex: string;
-  font: string;
 }
 
 export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
-  ({ photo, bgHex, fgHex, font }, ref) => {
+  ({ photo, bgHex, fgHex }, ref) => {
 
     const colorRef = useRef<HTMLDivElement>(null);
-    const pathRef = useRef<SVGPathElement>(null);
     const photoContainerRef = useRef<HTMLDivElement>(null);
     const prevPhotoId = useRef<string | null>(null);
-    const [ready, setReady] = useState(false);
-    // Circle path
-    const CIRCLE = 'M 50,0 A 50,50 0 1,1 50,100 A 50,50 0 1,1 50,0 Z';
-
-    // Morph circle to each font's full path on font change
-    useEffect(() => {
-      if (!font || font === 'serif') return;
-      const glyphs = getFontGlyphs(font);
-      if (!glyphs || !pathRef.current) return;
-
-      if (!ready) {
-        setReady(true);
-        return;
-      }
-
-      gsap.to(pathRef.current, {
-        morphSVG: glyphs.full,
-        duration: MORPH_DURATION,
-        ease: 'power2.inOut',
-      });
-    }, [font, ready]);
 
     // Ease background color
     useEffect(() => {
@@ -53,11 +26,6 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
         gsap.to(colorRef.current, { backgroundColor: bgHex, duration: COLOR_DURATION, ease: 'power2.out', overwrite: true });
       }
     }, [bgHex]);
-
-    // Set fill color directly
-    useEffect(() => {
-      if (pathRef.current) pathRef.current.setAttribute('fill', fgHex);
-    }, [fgHex]);
 
     // Crossfade photo
     useEffect(() => {
@@ -80,12 +48,8 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
           className="w-1/2 h-full flex items-center justify-center"
           style={{ backgroundColor: bgHex }}
         >
-          <svg
-            viewBox="-10 -10 420 200"
-            className="w-auto h-[30vh] sm:h-[35vh] md:h-[40vh] max-w-[80%]"
-            preserveAspectRatio="xMidYMid meet"
-          >
-            <path ref={pathRef} d={CIRCLE} fill={fgHex} />
+          <svg viewBox="0 0 100 100" className="w-[20vh] h-[20vh]">
+            <circle cx="50" cy="50" r="50" fill={fgHex} />
           </svg>
         </div>
 

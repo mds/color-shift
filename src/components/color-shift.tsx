@@ -302,7 +302,6 @@ export function ColorShift() {
           photo={photoData}
           bgHex={bgHex}
           fgHex={fgHex}
-          font={currentFont}
         />
       </div>
 
