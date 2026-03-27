@@ -21,13 +21,11 @@ const SHAPES = [
   'M 50,5 L 95,90 L 5,90 Z',
 ];
 
-function getShapeForPhoto(photoId: string): string {
-  let hash = 0;
-  for (let i = 0; i < photoId.length; i++) {
-    hash = ((hash << 5) - hash) + photoId.charCodeAt(i);
-    hash |= 0;
-  }
-  return SHAPES[Math.abs(hash) % SHAPES.length];
+let shapeIndex = 0;
+function getNextShape(): string {
+  const shape = SHAPES[shapeIndex % SHAPES.length];
+  shapeIndex++;
+  return shape;
 }
 
 interface StripTransitionProps {
@@ -63,7 +61,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       if (photo.id === prevPhotoId.current) return;
       prevPhotoId.current = photo.id;
 
-      const targetShape = getShapeForPhoto(photo.id);
+      const targetShape = getNextShape();
 
       // Morph shape
       if (pathRef.current) {
