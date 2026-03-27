@@ -24,7 +24,7 @@ import {
 } from '@/lib/color-engine';
 import { Specimen } from './specimen';
 import { ControlStrip, type PhotoData } from './control-strip';
-import { PhotoPanel, TRANSITION_LABELS, type TransitionType } from './photo-panel';
+import { PhotoPanel } from './photo-panel';
 
 interface PhotoColors { bg: string; fg: string; }
 
@@ -35,7 +35,6 @@ export function ColorShift() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [sliderMode, setSliderMode] = useState<SliderMode>('OKLCH');
   const [contrastAlgorithm, setContrastAlgorithm] = useState<ContrastAlgorithm>('WCAG2');
-  const [photoTransition, setPhotoTransition] = useState<TransitionType>('pixel-scramble');
 
   // ── Photo state ──
   const [photoBuffer, setPhotoBuffer] = useState<PhotoData[]>([]);
@@ -311,26 +310,12 @@ export function ColorShift() {
 
         {/* Photo panel — fixed half */}
         {photoBuffer.length > 0 && (
-          <div className="h-1/2 md:h-full md:w-1/2 shrink-0 overflow-hidden relative">
+          <div className="h-1/2 md:h-full md:w-1/2 shrink-0 overflow-hidden">
             <PhotoPanel
               buffer={photoBuffer}
               currentIndex={photoIndex}
               onIndexChange={handlePhotoIndexChange}
-              transition={photoTransition}
             />
-            {/* Transition selector */}
-            <div className="absolute top-3 left-3 z-40">
-              <select
-                value={photoTransition}
-                onChange={e => setPhotoTransition(e.target.value as TransitionType)}
-                className="bg-black/30 backdrop-blur-sm text-white/70 text-[11px] font-mono rounded-md px-2 py-1 border border-white/10 outline-none cursor-pointer appearance-none"
-                style={{ paddingRight: '20px', backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'10\' viewBox=\'0 0 10 10\'%3E%3Cpath d=\'M2 3l3 4 3-4\' fill=\'none\' stroke=\'rgba(255,255,255,0.5)\' stroke-width=\'1.5\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}
-              >
-                {Object.entries(TRANSITION_LABELS).map(([key, label]) => (
-                  <option key={key} value={key}>{label}</option>
-                ))}
-              </select>
-            </div>
           </div>
         )}
       </div>
