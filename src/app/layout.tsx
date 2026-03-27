@@ -4,7 +4,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import "dialkit/styles.css";
 import { getGoogleFontsUrl } from "@/lib/fonts";
-import { DialRoot } from "dialkit";
+import { DialKitWrapper } from "@/components/dial-kit-wrapper";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -63,7 +63,7 @@ export default function RootLayout({
       </head>
       <body>
         {children}
-        <DialRoot />
+        <DialKitWrapper />
       </body>
     </html>
   );
