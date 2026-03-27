@@ -16,11 +16,10 @@ interface StripTransitionProps {
   bgHex: string;
   fgHex: string;
   font: string;
-  specimenText: string;
 }
 
 export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
-  ({ photo, bgHex, fgHex, font, specimenText }, ref) => {
+  ({ photo, bgHex, fgHex, font }, ref) => {
 
     const colorRef = useRef<HTMLDivElement>(null);
     const pathRef = useRef<SVGPathElement>(null);

@@ -31,7 +31,6 @@ interface PhotoColors { bg: string; fg: string; }
 export function ColorShift() {
   // ── UI state ──
   const [colorFormat, setColorFormat] = useState<ColorFormat>('HEX');
-  const [specimenText, setSpecimenText] = useState('Aa');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [sliderMode, setSliderMode] = useState<SliderMode>('OKLCH');
   const [contrastAlgorithm, setContrastAlgorithm] = useState<ContrastAlgorithm>('WCAG2');
@@ -304,7 +303,6 @@ export function ColorShift() {
           bgHex={bgHex}
           fgHex={fgHex}
           font={currentFont}
-          specimenText={specimenText}
         />
       </div>
 
