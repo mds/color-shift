@@ -27,6 +27,18 @@ import { Arrows } from './arrows';
 
 type ControlsState = 'default' | 'score' | 'export';
 
+function luminance(hex: string): number {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000;
+}
+
+function brighterColor(a: string, b: string): string {
+  return luminance(a) >= luminance(b) ? a : b;
+}
+
 const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)';  // ease-out-quint
 const ENTER_DUR = 0.2;
 const EXIT_DUR = 0.15;
@@ -83,6 +95,7 @@ export function ControlsBar({
   className,
 }: ControlsBarProps) {
   const prevStateRef = useRef(state);
+  const initialStateRef = useRef(state); // frozen at mount — never changes
 
   // Refs for animatable zones
   const resultsCollapsedRef = useRef<HTMLDivElement>(null);
@@ -91,9 +104,13 @@ export function ControlsBar({
   const arrowsRef = useRef<HTMLDivElement>(null);
   const exportOptionsRef = useRef<HTMLDivElement>(null);
 
-  // Derive initial states for SSR-safe rendering
-  const isScore = state === 'score';
-  const isExport = state === 'export';
+  // Initial state — frozen at mount for SSR-safe first render only
+  // After mount, GSAP owns all visibility/transform on these refs
+  const initScore = initialStateRef.current === 'score';
+  const initExport = initialStateRef.current === 'export';
+
+  // The brighter of bg/fg — used for selected state inner glow
+  const accent = brighterColor(bgHex, fgHex);
 
   // Animate transitions — only transform + opacity
   useEffect(() => {
@@ -106,9 +123,11 @@ export function ControlsBar({
     // ── default → export ──
     if (prev === 'default' && state === 'export') {
       tl
-        // Arrows slide out left + fade
+        // Arrows slide out left + fade, then take out of flow
         .to(arrowsRef.current, { autoAlpha: 0, x: -16, duration: EXIT_DUR, ease: EASE_OUT })
-        // Export options slide in from right (from EXPORT's position toward left)
+        .set(arrowsRef.current, { position: 'absolute' })
+        // Export options enter flow, then slide in from right
+        .set(exportOptionsRef.current, { position: 'relative' })
         .fromTo(exportOptionsRef.current,
           { autoAlpha: 0, x: 16 },
           { autoAlpha: 1, x: 0, duration: ENTER_DUR, ease: EASE_OUT },
@@ -119,9 +138,11 @@ export function ControlsBar({
     // ── export → default ──
     else if (prev === 'export' && state === 'default') {
       tl
-        // Export options slide out right (back toward EXPORT) + fade
+        // Export options slide out right + fade, then take out of flow
         .to(exportOptionsRef.current, { autoAlpha: 0, x: 16, duration: EXIT_DUR, ease: EASE_OUT })
-        // Arrows slide back in from left
+        .set(exportOptionsRef.current, { position: 'absolute' })
+        // Arrows enter flow, then slide back in from left
+        .set(arrowsRef.current, { position: 'relative' })
         .fromTo(arrowsRef.current,
           { autoAlpha: 0, x: -16 },
           { autoAlpha: 1, x: 0, duration: ENTER_DUR, ease: EASE_OUT },
@@ -222,7 +243,7 @@ export function ControlsBar({
         <div
           ref={resultsCollapsedRef}
           className="flex items-center gap-1"
-          style={isScore ? { opacity: 0, visibility: 'hidden' } : undefined}
+          style={initScore ? { opacity: 0, visibility: 'hidden' } : undefined}
         >
           <Score
             type={algorithm}
@@ -239,7 +260,7 @@ export function ControlsBar({
         <div
           ref={resultsExpandedRef}
           className="flex items-center gap-1"
-          style={isScore
+          style={initScore
             ? undefined
             : { opacity: 0, visibility: 'hidden', position: 'absolute', top: 0, left: 0, transform: 'translateX(-12px)' }
           }
@@ -255,6 +276,7 @@ export function ControlsBar({
             state="selected"
             rating={rating}
             value={contrastValue}
+            accentColor={accent}
             onClick={onResultsToggle}
           />
         </div>
@@ -264,13 +286,13 @@ export function ControlsBar({
       {/* EXPORT is the anchor — always visible, always rightmost */}
       <div
         ref={rightContainerRef}
-        className="flex items-center justify-end gap-1 flex-1 min-w-0"
-        style={isScore ? { opacity: 0, visibility: 'hidden', transform: 'translateX(16px)' } : undefined}
+        className="flex items-center justify-end gap-1 flex-1 min-w-0 relative"
+        style={initScore ? { opacity: 0, visibility: 'hidden', transform: 'translateX(16px)' } : undefined}
       >
         {/* Arrows — visible in default, hidden in export */}
         <div
           ref={arrowsRef}
-          style={isExport ? { opacity: 0, visibility: 'hidden', transform: 'translateX(-16px)' } : undefined}
+          style={initExport ? { opacity: 0, visibility: 'hidden', transform: 'translateX(-16px)' } : undefined}
         >
           <Arrows onLeft={onLeftArrow} onRight={onRightArrow} />
         </div>
@@ -279,9 +301,9 @@ export function ControlsBar({
         <div
           ref={exportOptionsRef}
           className="flex items-center gap-1"
-          style={isExport
+          style={initExport
             ? undefined
-            : { opacity: 0, visibility: 'hidden', transform: 'translateX(16px)' }
+            : { opacity: 0, visibility: 'hidden', transform: 'translateX(16px)', position: 'absolute', right: 0, top: 0 }
           }
         >
           <CSButton label="COPY URL" onClick={onCopyUrl} />
@@ -290,8 +312,9 @@ export function ControlsBar({
 
         {/* EXPORT — always visible, always rightmost, toggles export state */}
         <CSButton
-          label="EXPORT"
-          state={isExport ? 'selected' : 'default'}
+          label={state === 'export' ? 'CLOSE' : 'EXPORT'}
+          state={state === 'export' ? 'selected' : 'default'}
+          accentColor={accent}
           onClick={onExportToggle}
         />
       </div>
