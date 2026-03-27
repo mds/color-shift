@@ -55,7 +55,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
         {/* Color panel */}
         <div
           ref={colorRef}
-          className="w-1/2 h-full flex items-end justify-center pb-[30vh]"
+          className="w-1/2 h-full flex items-center justify-center"
           style={{ backgroundColor: bgHex }}
         >
           <span
