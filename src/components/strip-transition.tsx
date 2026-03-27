@@ -118,10 +118,12 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
               {/* Color half */}
               <div className="w-1/2 h-full flex items-center justify-center" style={{ backgroundColor: leftBg }}>
                 {i === Math.floor(NUM_STRIPS / 2) && (
-                  <span className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-none tracking-tight"
-                    style={{ color: leftFg, fontFamily: leftFont === 'serif' ? 'serif' : `'${leftFont}', serif` }}>
-                    {specimenText}
-                  </span>
+                  <div className="h-[200px] sm:h-[240px] md:h-[280px] lg:h-[320px] flex items-end justify-center">
+                    <span className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-[1] tracking-tight"
+                      style={{ color: leftFg, fontFamily: leftFont === 'serif' ? 'serif' : `'${leftFont}', serif` }}>
+                      {specimenText}
+                    </span>
+                  </div>
                 )}
               </div>
               {/* Photo half */}
@@ -144,10 +146,12 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
               {/* Color half */}
               <div className="w-1/2 h-full flex items-center justify-center" style={{ backgroundColor: rightBg }}>
                 {i === Math.floor(NUM_STRIPS / 2) && (
-                  <span className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-none tracking-tight"
-                    style={{ color: rightFg, fontFamily: rightFont === 'serif' ? 'serif' : `'${rightFont}', serif` }}>
-                    {specimenText}
-                  </span>
+                  <div className="h-[200px] sm:h-[240px] md:h-[280px] lg:h-[320px] flex items-end justify-center">
+                    <span className="text-[60px] sm:text-[80px] md:text-[120px] lg:text-[160px] leading-[1] tracking-tight"
+                      style={{ color: rightFg, fontFamily: rightFont === 'serif' ? 'serif' : `'${rightFont}', serif` }}>
+                      {specimenText}
+                    </span>
+                  </div>
                 )}
               </div>
               {/* Photo half */}
