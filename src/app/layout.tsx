@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
+import "dialkit/styles.css";
 import { getGoogleFontsUrl } from "@/lib/fonts";
+import { DialRoot } from "dialkit";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -59,7 +61,10 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="stylesheet" href={getGoogleFontsUrl()} />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <DialRoot />
+      </body>
     </html>
   );
 }
