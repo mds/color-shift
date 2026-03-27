@@ -25,6 +25,7 @@ import {
 import { ControlStrip, type PhotoData } from './control-strip';
 import { StripTransition } from './strip-transition';
 import { getFontForPhoto } from '@/lib/fonts';
+import { ControlContainer } from './ui/control-container';
 
 interface PhotoColors { bg: string; fg: string; }
 
@@ -305,22 +306,35 @@ export function ColorShift() {
         />
       </div>
 
-      {/* Controls */}
-      <ControlStrip
-        bg={bg} fg={fg} bgHex={bgHex} fgHex={fgHex}
-        contrast={contrast} activeThreshold={activeThreshold}
-        theme={theme} sliderMode={sliderMode} contrastAlgorithm={contrastAlgorithm} colorFormat={colorFormat}
-        photoThumb={null} photoThumbRef={useRef(null)} isPhotoLoading={isPhotoLoading}
-        onBgInput={handleBgInput} onFgInput={handleFgInput} onSwap={swap}
-        onBumpUp={bumpUp} onBumpDown={bumpDown} onBumpTo={bumpTo}
-        onUpdateBgHsb={updateBgHsb} onUpdateFgHsb={updateFgHsb}
-        onUpdateBgOklch={updateBgOklch} onUpdateFgOklch={updateFgOklch}
-        onCycleFormat={cycleFormat} onGenerate={injectPhoto}
-        onLoadPhoto={loadPhotos} onPhotoOpen={() => {}}
-        onCopy={copyExport} onDownload={() => {}}
-        onToggleTheme={toggleTheme} onToggleSliderMode={toggleSliderMode}
-        onToggleContrastAlgorithm={toggleContrastAlgorithm}
-        onDragStart={onDragStart} onDragEnd={onDragEnd} formatColorValue={formatColorValue}
+      {/* Controls — new UI components */}
+      <ControlContainer
+        slidersExpanded={false}
+        sliderMode={sliderMode === 'HSB' ? 'HSB' : 'OKLCH'}
+        sliders={[
+          { label: 'L', value: 44, min: 0, max: 100, step: 1, displayValue: '44', trackGradient: 'linear-gradient(90deg, black, white)' },
+          { label: 'C', value: 0.06, min: 0, max: 0.4, step: 0.001, displayValue: '0.060', trackGradient: 'linear-gradient(90deg, gray, teal)' },
+          { label: 'H', value: 183, min: 0, max: 360, step: 1, displayValue: '183', trackGradient: 'linear-gradient(90deg, red, yellow, green, cyan, blue, magenta, red)' },
+        ]}
+        controlsState="default"
+        bgHex={bgHex}
+        fgHex={fgHex}
+        algorithm={contrastAlgorithm === 'WCAG2' ? 'wcag' : 'apca'}
+        rating={contrast.grade}
+        contrastValue={contrast.scoreLabel}
+        thresholds={contrastAlgorithm === 'WCAG2' ? [1.5, 3.0, 4.5, 7.0] : [30, 45, 60, 75]}
+        activeThreshold={activeThreshold}
+        onBgClick={() => {}}
+        onFgClick={() => {}}
+        onSwap={swap}
+        onResultsToggle={() => {}}
+        onAlgorithmToggle={toggleContrastAlgorithm}
+        onThresholdSelect={bumpTo}
+        onLeftArrow={() => navigateTo(photoIndex - 1)}
+        onRightArrow={() => navigateTo(photoIndex + 1)}
+        onExportToggle={() => {}}
+        onCopyUrl={copyExport}
+        onDownloadMd={() => {}}
+        onExport={() => {}}
       />
     </div>
   );
