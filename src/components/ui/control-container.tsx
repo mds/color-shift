@@ -16,7 +16,8 @@ interface SliderConfig {
   max: number;
   step: number;
   displayValue: string;
-  trackGradient: string;
+  gradients: { oklch: string; hsb: string; rgb: string };
+  trackDark?: boolean;
 }
 
 interface ControlContainerProps {
@@ -114,6 +115,7 @@ export function ControlContainer({
             />
             <ColorSliders
               sliders={sliders}
+              activeMode={sliderMode}
               onChange={onSliderChange}
               onDragStart={onSliderDragStart}
               onDragEnd={onSliderDragEnd}

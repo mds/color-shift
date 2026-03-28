@@ -1,15 +1,23 @@
+'use client';
+
 // ColorSlider — single slider with gradient track, grip, and label/value
-// Figma: "slider" component (33:2138)
-// Composed of: track (gradient bg + thumb), slider values (label + value)
+// Three gradient layers always rendered (one per color mode).
+// Active mode at opacity 1, others at 0. CSS transition handles the fade.
 
 interface ColorSliderProps {
-  label: string;          // e.g. "L", "C", "H"
+  label: string;
   value: number;
   min: number;
   max: number;
   step?: number;
-  displayValue: string;   // formatted display string e.g. "44", "0.060", "183"
-  trackGradient: string;  // CSS gradient string for the track
+  displayValue: string;
+  gradients: {
+    oklch: string;
+    hsb: string;
+    rgb: string;
+  };
+  activeMode: 'OKLCH' | 'HSB' | 'RGB';
+  trackDark?: boolean;
   onChange?: (value: number) => void;
   onDragStart?: () => void;
   onDragEnd?: () => void;
@@ -23,19 +31,44 @@ export function ColorSlider({
   max,
   step = 1,
   displayValue,
-  trackGradient,
+  gradients,
+  activeMode,
+  trackDark = false,
   onChange,
   onDragStart,
   onDragEnd,
   className,
 }: ColorSliderProps) {
+  const innerStroke = `inset 0 0 0 1px rgba(255,255,255,${trackDark ? 0.1 : 0})`;
+  const layerClass = 'absolute inset-0 my-auto h-2 rounded-[52px] transition-opacity duration-300 linear';
+
   return (
     <div className={`flex flex-col gap-1 w-full ${className ?? ''}`}>
-      {/* Track with gradient and range input */}
+      {/* Track: three gradient layers, only active mode is opaque */}
       <div className="relative flex items-center h-3 w-full">
         <div
-          className="absolute inset-0 my-auto h-2 rounded-[52px]"
-          style={{ background: trackGradient }}
+          className={layerClass}
+          style={{
+            background: gradients.oklch,
+            opacity: activeMode === 'OKLCH' ? 1 : 0,
+            boxShadow: innerStroke,
+          }}
+        />
+        <div
+          className={layerClass}
+          style={{
+            background: gradients.hsb,
+            opacity: activeMode === 'HSB' ? 1 : 0,
+            boxShadow: innerStroke,
+          }}
+        />
+        <div
+          className={layerClass}
+          style={{
+            background: gradients.rgb,
+            opacity: activeMode === 'RGB' ? 1 : 0,
+            boxShadow: innerStroke,
+          }}
         />
         <input
           type="range"
@@ -55,7 +88,7 @@ export function ColorSlider({
         <span className="font-mono text-xs text-[#a39f9f] leading-none">
           {label}
         </span>
-        <span className="font-mono text-xs text-[#a39f9f] leading-none text-right">
+        <span className="font-mono text-xs text-[#a39f9f] leading-none text-right tabular-nums">
           {displayValue}
         </span>
       </div>

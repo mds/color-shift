@@ -31,6 +31,18 @@ import { ControlContainer } from './ui/control-container';
 
 interface PhotoColors { bg: string; fg: string; }
 
+function isDark(hex: string): boolean {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 < 40;
+}
+
+function isTrackDark(start: string, end: string): boolean {
+  return isDark(start) || isDark(end);
+}
+
 export function ColorShift() {
   // ── UI state ──
   const [colorFormat, setColorFormat] = useState<ColorFormat>('HEX');
@@ -411,27 +423,55 @@ export function ColorShift() {
         sliders={(() => {
           const cd = sliderTarget === 'bg' ? bg : fg;
           const { values, labels, display } = percentToActual(sliderPos, sliderMode, cd);
-          const [a, b2, c] = values;
-          if (sliderMode === 'OKLCH') {
-            const mc = Math.max(maxChroma(a, c), b2, 0.001);
-            return [
-              { label: labels[0], value: sliderPos[0], min: 0, max: 100, step: 0.1, displayValue: display[0], trackGradient: `linear-gradient(90deg, ${oklchToHex({ l: 0, c: b2, h: c })}, ${oklchToHex({ l: 50, c: b2, h: c })}, ${oklchToHex({ l: 100, c: b2, h: c })})` },
-              { label: labels[1], value: sliderPos[1], min: 0, max: 100, step: 0.1, displayValue: display[1], trackGradient: `linear-gradient(90deg, ${oklchToHex({ l: a, c: 0, h: c })}, ${oklchToHex({ l: a, c: mc, h: c })})` },
-              { label: labels[2], value: sliderPos[2], min: 0, max: 100, step: 0.1, displayValue: display[2], trackGradient: `linear-gradient(90deg, ${oklchToHex({ l: a, c: b2, h: 0 })}, ${oklchToHex({ l: a, c: b2, h: 60 })}, ${oklchToHex({ l: a, c: b2, h: 120 })}, ${oklchToHex({ l: a, c: b2, h: 180 })}, ${oklchToHex({ l: a, c: b2, h: 240 })}, ${oklchToHex({ l: a, c: b2, h: 300 })}, ${oklchToHex({ l: a, c: b2, h: 360 })})` },
-            ] as [any, any, any];
-          } else if (sliderMode === 'HSB') {
-            return [
-              { label: labels[0], value: sliderPos[0], min: 0, max: 100, step: 0.1, displayValue: display[0], trackGradient: `linear-gradient(90deg, ${hsbToHex({ h: 0, s: b2, b: c })}, ${hsbToHex({ h: 60, s: b2, b: c })}, ${hsbToHex({ h: 120, s: b2, b: c })}, ${hsbToHex({ h: 180, s: b2, b: c })}, ${hsbToHex({ h: 240, s: b2, b: c })}, ${hsbToHex({ h: 300, s: b2, b: c })}, ${hsbToHex({ h: 360, s: b2, b: c })})` },
-              { label: labels[1], value: sliderPos[1], min: 0, max: 100, step: 0.1, displayValue: display[1], trackGradient: `linear-gradient(90deg, ${hsbToHex({ h: a, s: 0, b: c })}, ${hsbToHex({ h: a, s: 100, b: c })})` },
-              { label: labels[2], value: sliderPos[2], min: 0, max: 100, step: 0.1, displayValue: display[2], trackGradient: `linear-gradient(90deg, ${hsbToHex({ h: a, s: b2, b: 0 })}, ${hsbToHex({ h: a, s: b2, b: 100 })})` },
-            ] as [any, any, any];
-          } else {
-            return [
-              { label: labels[0], value: sliderPos[0], min: 0, max: 100, step: 0.1, displayValue: display[0], trackGradient: `linear-gradient(90deg, ${rgbToHex(0, Math.round(b2), Math.round(c))}, ${rgbToHex(255, Math.round(b2), Math.round(c))})` },
-              { label: labels[1], value: sliderPos[1], min: 0, max: 100, step: 0.1, displayValue: display[1], trackGradient: `linear-gradient(90deg, ${rgbToHex(Math.round(a), 0, Math.round(c))}, ${rgbToHex(Math.round(a), 255, Math.round(c))})` },
-              { label: labels[2], value: sliderPos[2], min: 0, max: 100, step: 0.1, displayValue: display[2], trackGradient: `linear-gradient(90deg, ${rgbToHex(Math.round(a), Math.round(b2), 0)}, ${rgbToHex(Math.round(a), Math.round(b2), 255)})` },
-            ] as [any, any, any];
-          }
+          const [va, vb, vc] = values;
+
+          // Compute actual values for all three modes (for gradient generation)
+          const oV = percentToActual(sliderPos, 'OKLCH', cd).values;
+          const hV = percentToActual(sliderPos, 'HSB', cd).values;
+          const rV = percentToActual(sliderPos, 'RGB', cd).values;
+
+          // OKLCH gradients
+          const oMc = Math.max(maxChroma(oV[0], oV[2]), oV[1], 0.001);
+          const oG = [
+            `linear-gradient(90deg, ${oklchToHex({ l: 0, c: oV[1], h: oV[2] })}, ${oklchToHex({ l: 50, c: oV[1], h: oV[2] })}, ${oklchToHex({ l: 100, c: oV[1], h: oV[2] })})`,
+            `linear-gradient(90deg, ${oklchToHex({ l: oV[0], c: 0, h: oV[2] })}, ${oklchToHex({ l: oV[0], c: oMc, h: oV[2] })})`,
+            `linear-gradient(90deg, ${oklchToHex({ l: oV[0], c: oV[1], h: 0 })}, ${oklchToHex({ l: oV[0], c: oV[1], h: 60 })}, ${oklchToHex({ l: oV[0], c: oV[1], h: 120 })}, ${oklchToHex({ l: oV[0], c: oV[1], h: 180 })}, ${oklchToHex({ l: oV[0], c: oV[1], h: 240 })}, ${oklchToHex({ l: oV[0], c: oV[1], h: 300 })}, ${oklchToHex({ l: oV[0], c: oV[1], h: 360 })})`,
+          ];
+
+          // HSB gradients
+          const hG = [
+            `linear-gradient(90deg, ${hsbToHex({ h: 0, s: hV[1], b: hV[2] })}, ${hsbToHex({ h: 60, s: hV[1], b: hV[2] })}, ${hsbToHex({ h: 120, s: hV[1], b: hV[2] })}, ${hsbToHex({ h: 180, s: hV[1], b: hV[2] })}, ${hsbToHex({ h: 240, s: hV[1], b: hV[2] })}, ${hsbToHex({ h: 300, s: hV[1], b: hV[2] })}, ${hsbToHex({ h: 360, s: hV[1], b: hV[2] })})`,
+            `linear-gradient(90deg, ${hsbToHex({ h: hV[0], s: 0, b: hV[2] })}, ${hsbToHex({ h: hV[0], s: 100, b: hV[2] })})`,
+            `linear-gradient(90deg, ${hsbToHex({ h: hV[0], s: hV[1], b: 0 })}, ${hsbToHex({ h: hV[0], s: hV[1], b: 100 })})`,
+          ];
+
+          // RGB gradients
+          const rG = [
+            `linear-gradient(90deg, ${rgbToHex(0, Math.round(rV[1]), Math.round(rV[2]))}, ${rgbToHex(255, Math.round(rV[1]), Math.round(rV[2]))})`,
+            `linear-gradient(90deg, ${rgbToHex(Math.round(rV[0]), 0, Math.round(rV[2]))}, ${rgbToHex(Math.round(rV[0]), 255, Math.round(rV[2]))})`,
+            `linear-gradient(90deg, ${rgbToHex(Math.round(rV[0]), Math.round(rV[1]), 0)}, ${rgbToHex(Math.round(rV[0]), Math.round(rV[1]), 255)})`,
+          ];
+
+          // Determine trackDark from active mode's gradient endpoints
+          const activeG = sliderMode === 'OKLCH' ? oG : sliderMode === 'HSB' ? hG : rG;
+
+          return [0, 1, 2].map((i) => ({
+            label: labels[i],
+            value: sliderPos[i],
+            min: 0,
+            max: 100,
+            step: 0.1,
+            displayValue: display[i],
+            trackDark: isTrackDark(
+              sliderMode === 'OKLCH' ? oklchToHex({ l: i === 0 ? 0 : oV[0], c: i === 1 ? 0 : oV[1], h: i === 2 ? 0 : oV[2] }) :
+              sliderMode === 'HSB' ? hsbToHex({ h: i === 0 ? 0 : hV[0], s: i === 1 ? 0 : hV[1], b: i === 2 ? 0 : hV[2] }) :
+              rgbToHex(i === 0 ? 0 : Math.round(rV[0]), i === 1 ? 0 : Math.round(rV[1]), i === 2 ? 0 : Math.round(rV[2])),
+              sliderMode === 'OKLCH' ? oklchToHex({ l: i === 0 ? 100 : oV[0], c: i === 1 ? oMc : oV[1], h: i === 2 ? 360 : oV[2] }) :
+              sliderMode === 'HSB' ? hsbToHex({ h: i === 0 ? 360 : hV[0], s: i === 1 ? 100 : hV[1], b: i === 2 ? 100 : hV[2] }) :
+              rgbToHex(i === 0 ? 255 : Math.round(rV[0]), i === 1 ? 255 : Math.round(rV[1]), i === 2 ? 255 : Math.round(rV[2]))
+            ),
+            gradients: { oklch: oG[i], hsb: hG[i], rgb: rG[i] },
+          })) as [any, any, any];
         })()}
         onSliderChange={(index, value) => {
           // Update normalized percentage directly (no animation)

@@ -1,6 +1,5 @@
 // ColorSliders — group of 3 color channel sliders
 // Figma: "color sliders" component (33:2203)
-// Wraps 3 ColorSlider instances in a vertical stack with consistent padding
 
 import { ColorSlider } from './color-slider';
 
@@ -11,11 +10,13 @@ interface SliderConfig {
   max: number;
   step: number;
   displayValue: string;
-  trackGradient: string;
+  gradients: { oklch: string; hsb: string; rgb: string };
+  trackDark?: boolean;
 }
 
 interface ColorSlidersProps {
   sliders: [SliderConfig, SliderConfig, SliderConfig];
+  activeMode: 'OKLCH' | 'HSB' | 'RGB';
   onChange?: (index: number, value: number) => void;
   onDragStart?: () => void;
   onDragEnd?: () => void;
@@ -24,6 +25,7 @@ interface ColorSlidersProps {
 
 export function ColorSliders({
   sliders,
+  activeMode,
   onChange,
   onDragStart,
   onDragEnd,
@@ -34,14 +36,16 @@ export function ColorSliders({
       <div className="flex flex-col gap-3 px-2 w-full">
         {sliders.map((s, i) => (
           <ColorSlider
-            key={s.label}
+            key={i}
             label={s.label}
             value={s.value}
             min={s.min}
             max={s.max}
             step={s.step}
             displayValue={s.displayValue}
-            trackGradient={s.trackGradient}
+            gradients={s.gradients}
+            activeMode={activeMode}
+            trackDark={s.trackDark}
             onChange={(v) => onChange?.(i, v)}
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}
