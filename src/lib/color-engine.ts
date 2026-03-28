@@ -4,7 +4,7 @@ import { APCAcontrast, sRGBtoY } from 'apca-w3';
 // ── Types ──────────────────────────────────────────────────────────────
 
 export type ColorFormat = 'HEX' | 'RGB' | 'HSL' | 'HSB' | 'OKLCH';
-export type SliderMode = 'HSB' | 'OKLCH';
+export type SliderMode = 'HSB' | 'OKLCH' | 'RGB';
 export type ContrastAlgorithm = 'WCAG2' | 'APCA';
 export type Grade = 'AAA' | 'AA' | 'AA Large' | 'Fail';
 
@@ -84,6 +84,13 @@ export function hsbToHex(hsb: HSB): string {
 
 export function oklchToHex(oklch: OklchValues): string {
   const color = { mode: 'oklch' as const, l: oklch.l / 100, c: oklch.c, h: oklch.h };
+  return formatHex(color) ?? '#000000';
+}
+
+// ── RGB → Hex ───────────────────────────────────────────────────────────
+
+export function rgbToHex(r: number, g: number, b: number): string {
+  const color = { mode: 'rgb' as const, r: r / 255, g: g / 255, b: b / 255 };
   return formatHex(color) ?? '#000000';
 }
 

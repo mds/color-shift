@@ -6,6 +6,8 @@ import {
   hexToColorData,
   hsbToHex,
   oklchToHex,
+  rgbToHex,
+  maxChroma,
   getContrastResult,
   bumpToThreshold,
   nearestThreshold,
@@ -36,6 +38,8 @@ export function ColorShift() {
   const [sliderMode, setSliderMode] = useState<SliderMode>('OKLCH');
   const [contrastAlgorithm, setContrastAlgorithm] = useState<ContrastAlgorithm>('WCAG2');
   const [controlsState, setControlsState] = useState<'default' | 'score' | 'export'>('default');
+  const [slidersExpanded, setSlidersExpanded] = useState(false);
+  const [sliderTarget, setSliderTarget] = useState<'bg' | 'fg'>('bg');
 
   // ── Photo state ──
   const [photoBuffer, setPhotoBuffer] = useState<PhotoData[]>([]);
@@ -251,8 +255,13 @@ export function ColorShift() {
   }, [bgHex, fgHex, contrast.score, contrastAlgorithm, setManualFg]);
 
   const bumpTo = useCallback((t: number) => {
-    setManualFg(bumpToThreshold(bgHex, fgHex, t, contrastAlgorithm));
-  }, [bgHex, fgHex, contrastAlgorithm, setManualFg]);
+    const target = slidersExpanded ? sliderTarget : 'fg';
+    if (target === 'bg') {
+      setManualBg(bumpToThreshold(fgHex, bgHex, t, contrastAlgorithm));
+    } else {
+      setManualFg(bumpToThreshold(bgHex, fgHex, t, contrastAlgorithm));
+    }
+  }, [bgHex, fgHex, contrastAlgorithm, setManualBg, setManualFg, slidersExpanded, sliderTarget]);
 
   const toggleSliderMode = useCallback(() => setSliderMode(m => m === 'HSB' ? 'OKLCH' : 'HSB'), []);
   const toggleContrastAlgorithm = useCallback(() => setContrastAlgorithm(a => a === 'WCAG2' ? 'APCA' : 'WCAG2'), []);
@@ -270,6 +279,71 @@ export function ColorShift() {
 
   const onDragStart = useCallback(() => { isDraggingRef.current = true; }, []);
   const onDragEnd = useCallback(() => { isDraggingRef.current = false; }, []);
+
+  // ── Global slider positions ──
+  // Source of truth for what the sliders display. Never derived from color data directly.
+  // Updated via: GSAP tweens (target/mode/photo change) or direct drag (user interaction).
+  // This is the normalized layer that all animations go through.
+  const [sliderPos, setSliderPos] = useState<[number, number, number]>([0, 0, 0]);
+  const sliderPosRef = useRef<[number, number, number]>([0, 0, 0]);
+  const sliderTweenRef = useRef<gsap.core.Tween | null>(null);
+  sliderPosRef.current = sliderPos;
+
+  // Extract slider values from color data for a given mode
+  const colorToSliderValues = useCallback((cd: typeof bg, mode: SliderMode): [number, number, number] => {
+    if (mode === 'OKLCH') return [cd.oklch.l, cd.oklch.c, cd.oklch.h];
+    if (mode === 'HSB') return [cd.hsb.h, cd.hsb.s, cd.hsb.b];
+    return [cd.rgb.r, cd.rgb.g, cd.rgb.b];
+  }, []);
+
+  // Animate slider positions from current to target
+  const animateSlidersTo = useCallback((target: [number, number, number], duration = 0.3) => {
+    if (sliderTweenRef.current) sliderTweenRef.current.kill();
+    const cur = sliderPosRef.current;
+    const proxy = { v0: cur[0], v1: cur[1], v2: cur[2] };
+    sliderTweenRef.current = gsap.to(proxy, {
+      v0: target[0], v1: target[1], v2: target[2],
+      duration, ease: 'power4.inOut',
+      onUpdate: () => {
+        const pos: [number, number, number] = [proxy.v0, proxy.v1, proxy.v2];
+        sliderPosRef.current = pos;
+        setSliderPos(pos);
+      },
+    });
+  }, []);
+
+  // Set slider positions instantly (no animation) — for initial mount
+  const setSlidersInstant = useCallback((target: [number, number, number]) => {
+    if (sliderTweenRef.current) sliderTweenRef.current.kill();
+    sliderPosRef.current = target;
+    setSliderPos(target);
+  }, []);
+
+  // Sync sliders when target, mode, or colors change
+  const prevSyncKey = useRef('');
+  useEffect(() => {
+    const cd = sliderTarget === 'bg' ? bg : fg;
+    const target = colorToSliderValues(cd, sliderMode);
+    const syncKey = `${sliderTarget}-${sliderMode}-${cd.hex}`;
+
+    // Skip if nothing changed (prevents infinite loops from slider drag → color update → re-sync)
+    if (syncKey === prevSyncKey.current) return;
+    const wasFirstSync = prevSyncKey.current === '';
+    prevSyncKey.current = syncKey;
+
+    // Don't animate while user is dragging
+    if (isDraggingRef.current) {
+      setSlidersInstant(target);
+      return;
+    }
+
+    if (wasFirstSync) {
+      setSlidersInstant(target);
+    } else {
+      animateSlidersTo(target);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sliderTarget, sliderMode, bgHex, fgHex]);
 
   // ── Keyboard — use ref for index so handler always reads latest ──
   const photoIndexRef = useRef(photoIndex);
@@ -309,13 +383,56 @@ export function ColorShift() {
 
       {/* Controls — new UI components */}
       <ControlContainer
-        slidersExpanded={false}
-        sliderMode={sliderMode === 'HSB' ? 'HSB' : 'OKLCH'}
-        sliders={[
-          { label: 'L', value: 44, min: 0, max: 100, step: 1, displayValue: '44', trackGradient: 'linear-gradient(90deg, black, white)' },
-          { label: 'C', value: 0.06, min: 0, max: 0.4, step: 0.001, displayValue: '0.060', trackGradient: 'linear-gradient(90deg, gray, teal)' },
-          { label: 'H', value: 183, min: 0, max: 360, step: 1, displayValue: '183', trackGradient: 'linear-gradient(90deg, red, yellow, green, cyan, blue, magenta, red)' },
-        ]}
+        slidersExpanded={slidersExpanded}
+        sliderMode={sliderMode}
+        sliders={(() => {
+          const [v0, v1, v2] = sliderPos;
+          if (sliderMode === 'OKLCH') {
+            const l = v0, c = v1, h = v2;
+            const mc = maxChroma(l, h);
+            return [
+              { label: 'L', value: l, min: 0, max: 100, step: 0.1, displayValue: l.toFixed(1), trackGradient: `linear-gradient(90deg, ${oklchToHex({ l: 0, c, h })}, ${oklchToHex({ l: 50, c, h })}, ${oklchToHex({ l: 100, c, h })})` },
+              { label: 'C', value: c, min: 0, max: Math.max(mc, c, 0.01), step: 0.001, displayValue: c.toFixed(3), trackGradient: `linear-gradient(90deg, ${oklchToHex({ l, c: 0, h })}, ${oklchToHex({ l, c: mc, h })})` },
+              { label: 'H', value: h, min: 0, max: 360, step: 1, displayValue: Math.round(h).toString(), trackGradient: `linear-gradient(90deg, ${oklchToHex({ l, c, h: 0 })}, ${oklchToHex({ l, c, h: 60 })}, ${oklchToHex({ l, c, h: 120 })}, ${oklchToHex({ l, c, h: 180 })}, ${oklchToHex({ l, c, h: 240 })}, ${oklchToHex({ l, c, h: 300 })}, ${oklchToHex({ l, c, h: 360 })})` },
+            ] as [any, any, any];
+          } else if (sliderMode === 'HSB') {
+            const h = v0, s = v1, b = v2;
+            return [
+              { label: 'H', value: h, min: 0, max: 360, step: 1, displayValue: Math.round(h).toString(), trackGradient: `linear-gradient(90deg, ${hsbToHex({ h: 0, s, b })}, ${hsbToHex({ h: 60, s, b })}, ${hsbToHex({ h: 120, s, b })}, ${hsbToHex({ h: 180, s, b })}, ${hsbToHex({ h: 240, s, b })}, ${hsbToHex({ h: 300, s, b })}, ${hsbToHex({ h: 360, s, b })})` },
+              { label: 'S', value: s, min: 0, max: 100, step: 1, displayValue: Math.round(s).toString(), trackGradient: `linear-gradient(90deg, ${hsbToHex({ h, s: 0, b })}, ${hsbToHex({ h, s: 100, b })})` },
+              { label: 'B', value: b, min: 0, max: 100, step: 1, displayValue: Math.round(b).toString(), trackGradient: `linear-gradient(90deg, ${hsbToHex({ h, s, b: 0 })}, ${hsbToHex({ h, s, b: 100 })})` },
+            ] as [any, any, any];
+          } else {
+            const r = v0, g = v1, b = v2;
+            return [
+              { label: 'R', value: Math.round(r), min: 0, max: 255, step: 1, displayValue: Math.round(r).toString(), trackGradient: `linear-gradient(90deg, ${rgbToHex(0, Math.round(g), Math.round(b))}, ${rgbToHex(255, Math.round(g), Math.round(b))})` },
+              { label: 'G', value: Math.round(g), min: 0, max: 255, step: 1, displayValue: Math.round(g).toString(), trackGradient: `linear-gradient(90deg, ${rgbToHex(Math.round(r), 0, Math.round(b))}, ${rgbToHex(Math.round(r), 255, Math.round(b))})` },
+              { label: 'B', value: Math.round(b), min: 0, max: 255, step: 1, displayValue: Math.round(b).toString(), trackGradient: `linear-gradient(90deg, ${rgbToHex(Math.round(r), Math.round(g), 0)}, ${rgbToHex(Math.round(r), Math.round(g), 255)})` },
+            ] as [any, any, any];
+          }
+        })()}
+        onSliderChange={(index, value) => {
+          // Update global slider position directly (no animation)
+          if (sliderTweenRef.current) sliderTweenRef.current.kill();
+          const newPos = [...sliderPosRef.current] as [number, number, number];
+          newPos[index] = value;
+          sliderPosRef.current = newPos;
+          setSliderPos(newPos);
+
+          // Convert slider positions to color and update
+          const setter = sliderTarget === 'bg' ? setManualBg : setManualFg;
+          if (sliderMode === 'OKLCH') {
+            setter(oklchToHex({ l: newPos[0], c: newPos[1], h: newPos[2] }));
+          } else if (sliderMode === 'HSB') {
+            setter(hsbToHex({ h: newPos[0], s: newPos[1], b: newPos[2] }));
+          } else {
+            setter(rgbToHex(Math.round(newPos[0]), Math.round(newPos[1]), Math.round(newPos[2])));
+          }
+        }}
+        onSliderDragStart={onDragStart}
+        onSliderDragEnd={onDragEnd}
+        onSliderModeChange={(m) => setSliderMode(m)}
+        onSlidersClose={() => setSlidersExpanded(false)}
         controlsState={controlsState}
         bgHex={bgHex}
         fgHex={fgHex}
@@ -324,9 +441,22 @@ export function ColorShift() {
         contrastValue={contrast.scoreLabel}
         thresholds={contrastAlgorithm === 'WCAG2' ? [1.5, 3.0, 4.5, 7.0] : [30, 45, 60, 75]}
         activeThreshold={activeThreshold}
-        onBgClick={() => {}}
-        onFgClick={() => {}}
-        onSwap={swap}
+        bgState={slidersExpanded && sliderTarget === 'bg' ? 'selected' : 'default'}
+        fgState={slidersExpanded && sliderTarget === 'fg' ? 'selected' : 'default'}
+        onBgClick={() => {
+          if (!slidersExpanded) { setSlidersExpanded(true); setSliderTarget('bg'); }
+          else if (sliderTarget === 'bg') { setSlidersExpanded(false); }
+          else { setSliderTarget('bg'); }
+        }}
+        onFgClick={() => {
+          if (!slidersExpanded) { setSlidersExpanded(true); setSliderTarget('fg'); }
+          else if (sliderTarget === 'fg') { setSlidersExpanded(false); }
+          else { setSliderTarget('fg'); }
+        }}
+        onSwap={() => {
+          swap();
+          if (slidersExpanded) setSliderTarget(t => t === 'bg' ? 'fg' : 'bg');
+        }}
         onResultsToggle={() => setControlsState(s => s === 'score' ? 'default' : 'score')}
         onAlgorithmToggle={toggleContrastAlgorithm}
         onThresholdSelect={bumpTo}

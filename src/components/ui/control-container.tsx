@@ -1,7 +1,7 @@
 // ControlContainer — the full bottom panel orchestrator
 // Figma: "control container" component (33:2305)
 // Contains: color mode row + color sliders + controls bar
-// This is the "big boy" — the single parent that holds the entire bottom UI
+// Slider panel animates -Y (slides up from below) on expand/collapse
 
 import { ColorMode } from './color-mode';
 import { ColorSliders } from './color-sliders';
@@ -91,25 +91,36 @@ export function ControlContainer({
   className,
 }: ControlContainerProps) {
   return (
-    <div className={`flex flex-col gap-4 bg-black p-2 w-full ${className ?? ''}`}>
-      {/* Slider panel — collapsible */}
-      {slidersExpanded && (
-        <div className="flex flex-col gap-2 w-full">
-          <ColorMode
-            mode={sliderMode}
-            onModeChange={onSliderModeChange}
-            showClose
-            onClose={onSlidersClose}
-            className="w-full"
-          />
-          <ColorSliders
-            sliders={sliders}
-            onChange={onSliderChange}
-            onDragStart={onSliderDragStart}
-            onDragEnd={onSliderDragEnd}
-          />
+    <div className={`flex flex-col bg-black p-2 w-full ${className ?? ''}`}>
+      {/* Slider panel — always mounted, animated with CSS grid rows + transform */}
+      <div
+        className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
+        style={{ gridTemplateRows: slidersExpanded ? '1fr' : '0fr' }}
+      >
+        <div className="overflow-hidden">
+          <div
+            className="flex flex-col gap-2 w-full pb-4 transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
+            style={{
+              opacity: slidersExpanded ? 1 : 0,
+              transform: slidersExpanded ? 'translateY(0)' : 'translateY(16px)',
+            }}
+          >
+            <ColorMode
+              mode={sliderMode}
+              onModeChange={onSliderModeChange}
+              showClose
+              onClose={onSlidersClose}
+              className="w-full"
+            />
+            <ColorSliders
+              sliders={sliders}
+              onChange={onSliderChange}
+              onDragStart={onSliderDragStart}
+              onDragEnd={onSliderDragEnd}
+            />
+          </div>
         </div>
-      )}
+      </div>
 
       {/* Controls bar — always visible */}
       <ControlsBar

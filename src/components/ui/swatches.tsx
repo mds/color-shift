@@ -31,6 +31,7 @@ export function Swatches({
       <CSButton
         label={bgHex.replace('#', '').toUpperCase()}
         swatchColor={bgHex}
+        accentColor={bgHex}
         state={bgState}
         animated
         onClick={onBgClick}
@@ -41,6 +42,7 @@ export function Swatches({
       <CSButton
         label={fgHex.replace('#', '').toUpperCase()}
         swatchColor={fgHex}
+        accentColor={fgHex}
         state={fgState}
         animated
         onClick={onFgClick}

@@ -44,11 +44,12 @@ export function CSButton({
       className={`
         flex items-center justify-center gap-2 p-2 rounded-lg shrink-0
         transition-colors duration-150
+        ${isSelected ? 'bg-[#191919]' : ''}
         ${state === 'hover' ? 'bg-[#191919]' : ''}
         ${state === 'default' ? 'hover:bg-[#191919]' : ''}
         ${className ?? ''}
       `}
-      style={isSelected ? { backgroundColor: accentColor } : undefined}
+      style={isSelected ? { boxShadow: 'inset 0 0 0 1px #2B2727' } : undefined}
     >
       {swatchColor && <Swatch color={swatchColor} />}
       {animated ? (

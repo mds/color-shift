@@ -38,6 +38,7 @@ export function Score({
         ${state === 'default' ? 'hover:bg-[#191919]' : ''}
         ${className ?? ''}
       `}
+      style={state === 'selected' ? { boxShadow: 'inset 0 0 0 1px #2B2727' } : undefined}
     >
       <div className="flex items-center justify-center gap-2.5">
         <TubeText
