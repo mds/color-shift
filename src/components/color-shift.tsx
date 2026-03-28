@@ -280,23 +280,53 @@ export function ColorShift() {
   const onDragStart = useCallback(() => { isDraggingRef.current = true; }, []);
   const onDragEnd = useCallback(() => { isDraggingRef.current = false; }, []);
 
-  // ── Global slider positions ──
-  // Source of truth for what the sliders display. Never derived from color data directly.
-  // Updated via: GSAP tweens (target/mode/photo change) or direct drag (user interaction).
-  // This is the normalized layer that all animations go through.
-  const [sliderPos, setSliderPos] = useState<[number, number, number]>([0, 0, 0]);
-  const sliderPosRef = useRef<[number, number, number]>([0, 0, 0]);
+  // ── Global slider positions [0-100, 0-100, 0-100] ──
+  // ALWAYS normalized percentages. Every color space maps into this range.
+  // All animations operate on these percentages — no raw color values ever.
+  const [sliderPos, setSliderPos] = useState<[number, number, number]>([50, 50, 50]);
+  const sliderPosRef = useRef<[number, number, number]>([50, 50, 50]);
   const sliderTweenRef = useRef<gsap.core.Tween | null>(null);
   sliderPosRef.current = sliderPos;
 
-  // Extract slider values from color data for a given mode
-  const colorToSliderValues = useCallback((cd: typeof bg, mode: SliderMode): [number, number, number] => {
-    if (mode === 'OKLCH') return [cd.oklch.l, cd.oklch.c, cd.oklch.h];
-    if (mode === 'HSB') return [cd.hsb.h, cd.hsb.s, cd.hsb.b];
-    return [cd.rgb.r, cd.rgb.g, cd.rgb.b];
+  // Color → normalized [0-100, 0-100, 0-100]
+  const colorToPercent = useCallback((cd: typeof bg, mode: SliderMode): [number, number, number] => {
+    if (mode === 'OKLCH') {
+      const mc = Math.max(maxChroma(cd.oklch.l, cd.oklch.h), cd.oklch.c, 0.001);
+      return [cd.oklch.l, (cd.oklch.c / mc) * 100, (cd.oklch.h / 360) * 100];
+    }
+    if (mode === 'HSB') return [(cd.hsb.h / 360) * 100, cd.hsb.s, cd.hsb.b];
+    return [(cd.rgb.r / 255) * 100, (cd.rgb.g / 255) * 100, (cd.rgb.b / 255) * 100];
   }, []);
 
-  // Animate slider positions from current to target
+  // Normalized [0-100] → actual values for a given mode + color (for display and gradients)
+  const percentToActual = useCallback((pct: [number, number, number], mode: SliderMode, cd: typeof bg) => {
+    if (mode === 'OKLCH') {
+      const l = pct[0];
+      const mc = Math.max(maxChroma(l, cd.oklch.h), cd.oklch.c, 0.001);
+      const c = (pct[1] / 100) * mc;
+      const h = (pct[2] / 100) * 360;
+      return { values: [l, c, h] as [number, number, number], labels: ['L', 'C', 'H'], display: [l.toFixed(1), c.toFixed(3), Math.round(h).toString()] };
+    }
+    if (mode === 'HSB') {
+      const h = (pct[0] / 100) * 360;
+      const s = pct[1];
+      const b = pct[2];
+      return { values: [h, s, b] as [number, number, number], labels: ['H', 'S', 'B'], display: [Math.round(h).toString(), Math.round(s).toString(), Math.round(b).toString()] };
+    }
+    const r = (pct[0] / 100) * 255;
+    const g = (pct[1] / 100) * 255;
+    const b = (pct[2] / 100) * 255;
+    return { values: [r, g, b] as [number, number, number], labels: ['R', 'G', 'B'], display: [Math.round(r).toString(), Math.round(g).toString(), Math.round(b).toString()] };
+  }, []);
+
+  // Actual values → hex
+  const actualToHex = useCallback((values: [number, number, number], mode: SliderMode): string => {
+    if (mode === 'OKLCH') return oklchToHex({ l: values[0], c: values[1], h: values[2] });
+    if (mode === 'HSB') return hsbToHex({ h: values[0], s: values[1], b: values[2] });
+    return rgbToHex(Math.round(values[0]), Math.round(values[1]), Math.round(values[2]));
+  }, []);
+
+  // Animate slider percentages from current to target
   const animateSlidersTo = useCallback((target: [number, number, number], duration = 0.3) => {
     if (sliderTweenRef.current) sliderTweenRef.current.kill();
     const cur = sliderPosRef.current;
@@ -312,7 +342,7 @@ export function ColorShift() {
     });
   }, []);
 
-  // Set slider positions instantly (no animation) — for initial mount
+  // Set slider percentages instantly
   const setSlidersInstant = useCallback((target: [number, number, number]) => {
     if (sliderTweenRef.current) sliderTweenRef.current.kill();
     sliderPosRef.current = target;
@@ -323,21 +353,14 @@ export function ColorShift() {
   const prevSyncKey = useRef('');
   useEffect(() => {
     const cd = sliderTarget === 'bg' ? bg : fg;
-    const target = colorToSliderValues(cd, sliderMode);
+    const target = colorToPercent(cd, sliderMode);
     const syncKey = `${sliderTarget}-${sliderMode}-${cd.hex}`;
 
-    // Skip if nothing changed (prevents infinite loops from slider drag → color update → re-sync)
     if (syncKey === prevSyncKey.current) return;
     const wasFirstSync = prevSyncKey.current === '';
     prevSyncKey.current = syncKey;
 
-    // Don't animate while user is dragging
-    if (isDraggingRef.current) {
-      setSlidersInstant(target);
-      return;
-    }
-
-    if (wasFirstSync) {
+    if (isDraggingRef.current || wasFirstSync) {
       setSlidersInstant(target);
     } else {
       animateSlidersTo(target);
@@ -386,48 +409,43 @@ export function ColorShift() {
         slidersExpanded={slidersExpanded}
         sliderMode={sliderMode}
         sliders={(() => {
-          const [v0, v1, v2] = sliderPos;
+          const cd = sliderTarget === 'bg' ? bg : fg;
+          const { values, labels, display } = percentToActual(sliderPos, sliderMode, cd);
+          const [a, b2, c] = values;
           if (sliderMode === 'OKLCH') {
-            const l = v0, c = v1, h = v2;
-            const mc = maxChroma(l, h);
+            const mc = Math.max(maxChroma(a, c), b2, 0.001);
             return [
-              { label: 'L', value: l, min: 0, max: 100, step: 0.1, displayValue: l.toFixed(1), trackGradient: `linear-gradient(90deg, ${oklchToHex({ l: 0, c, h })}, ${oklchToHex({ l: 50, c, h })}, ${oklchToHex({ l: 100, c, h })})` },
-              { label: 'C', value: c, min: 0, max: Math.max(mc, c, 0.01), step: 0.001, displayValue: c.toFixed(3), trackGradient: `linear-gradient(90deg, ${oklchToHex({ l, c: 0, h })}, ${oklchToHex({ l, c: mc, h })})` },
-              { label: 'H', value: h, min: 0, max: 360, step: 1, displayValue: Math.round(h).toString(), trackGradient: `linear-gradient(90deg, ${oklchToHex({ l, c, h: 0 })}, ${oklchToHex({ l, c, h: 60 })}, ${oklchToHex({ l, c, h: 120 })}, ${oklchToHex({ l, c, h: 180 })}, ${oklchToHex({ l, c, h: 240 })}, ${oklchToHex({ l, c, h: 300 })}, ${oklchToHex({ l, c, h: 360 })})` },
+              { label: labels[0], value: sliderPos[0], min: 0, max: 100, step: 0.1, displayValue: display[0], trackGradient: `linear-gradient(90deg, ${oklchToHex({ l: 0, c: b2, h: c })}, ${oklchToHex({ l: 50, c: b2, h: c })}, ${oklchToHex({ l: 100, c: b2, h: c })})` },
+              { label: labels[1], value: sliderPos[1], min: 0, max: 100, step: 0.1, displayValue: display[1], trackGradient: `linear-gradient(90deg, ${oklchToHex({ l: a, c: 0, h: c })}, ${oklchToHex({ l: a, c: mc, h: c })})` },
+              { label: labels[2], value: sliderPos[2], min: 0, max: 100, step: 0.1, displayValue: display[2], trackGradient: `linear-gradient(90deg, ${oklchToHex({ l: a, c: b2, h: 0 })}, ${oklchToHex({ l: a, c: b2, h: 60 })}, ${oklchToHex({ l: a, c: b2, h: 120 })}, ${oklchToHex({ l: a, c: b2, h: 180 })}, ${oklchToHex({ l: a, c: b2, h: 240 })}, ${oklchToHex({ l: a, c: b2, h: 300 })}, ${oklchToHex({ l: a, c: b2, h: 360 })})` },
             ] as [any, any, any];
           } else if (sliderMode === 'HSB') {
-            const h = v0, s = v1, b = v2;
             return [
-              { label: 'H', value: h, min: 0, max: 360, step: 1, displayValue: Math.round(h).toString(), trackGradient: `linear-gradient(90deg, ${hsbToHex({ h: 0, s, b })}, ${hsbToHex({ h: 60, s, b })}, ${hsbToHex({ h: 120, s, b })}, ${hsbToHex({ h: 180, s, b })}, ${hsbToHex({ h: 240, s, b })}, ${hsbToHex({ h: 300, s, b })}, ${hsbToHex({ h: 360, s, b })})` },
-              { label: 'S', value: s, min: 0, max: 100, step: 1, displayValue: Math.round(s).toString(), trackGradient: `linear-gradient(90deg, ${hsbToHex({ h, s: 0, b })}, ${hsbToHex({ h, s: 100, b })})` },
-              { label: 'B', value: b, min: 0, max: 100, step: 1, displayValue: Math.round(b).toString(), trackGradient: `linear-gradient(90deg, ${hsbToHex({ h, s, b: 0 })}, ${hsbToHex({ h, s, b: 100 })})` },
+              { label: labels[0], value: sliderPos[0], min: 0, max: 100, step: 0.1, displayValue: display[0], trackGradient: `linear-gradient(90deg, ${hsbToHex({ h: 0, s: b2, b: c })}, ${hsbToHex({ h: 60, s: b2, b: c })}, ${hsbToHex({ h: 120, s: b2, b: c })}, ${hsbToHex({ h: 180, s: b2, b: c })}, ${hsbToHex({ h: 240, s: b2, b: c })}, ${hsbToHex({ h: 300, s: b2, b: c })}, ${hsbToHex({ h: 360, s: b2, b: c })})` },
+              { label: labels[1], value: sliderPos[1], min: 0, max: 100, step: 0.1, displayValue: display[1], trackGradient: `linear-gradient(90deg, ${hsbToHex({ h: a, s: 0, b: c })}, ${hsbToHex({ h: a, s: 100, b: c })})` },
+              { label: labels[2], value: sliderPos[2], min: 0, max: 100, step: 0.1, displayValue: display[2], trackGradient: `linear-gradient(90deg, ${hsbToHex({ h: a, s: b2, b: 0 })}, ${hsbToHex({ h: a, s: b2, b: 100 })})` },
             ] as [any, any, any];
           } else {
-            const r = v0, g = v1, b = v2;
             return [
-              { label: 'R', value: Math.round(r), min: 0, max: 255, step: 1, displayValue: Math.round(r).toString(), trackGradient: `linear-gradient(90deg, ${rgbToHex(0, Math.round(g), Math.round(b))}, ${rgbToHex(255, Math.round(g), Math.round(b))})` },
-              { label: 'G', value: Math.round(g), min: 0, max: 255, step: 1, displayValue: Math.round(g).toString(), trackGradient: `linear-gradient(90deg, ${rgbToHex(Math.round(r), 0, Math.round(b))}, ${rgbToHex(Math.round(r), 255, Math.round(b))})` },
-              { label: 'B', value: Math.round(b), min: 0, max: 255, step: 1, displayValue: Math.round(b).toString(), trackGradient: `linear-gradient(90deg, ${rgbToHex(Math.round(r), Math.round(g), 0)}, ${rgbToHex(Math.round(r), Math.round(g), 255)})` },
+              { label: labels[0], value: sliderPos[0], min: 0, max: 100, step: 0.1, displayValue: display[0], trackGradient: `linear-gradient(90deg, ${rgbToHex(0, Math.round(b2), Math.round(c))}, ${rgbToHex(255, Math.round(b2), Math.round(c))})` },
+              { label: labels[1], value: sliderPos[1], min: 0, max: 100, step: 0.1, displayValue: display[1], trackGradient: `linear-gradient(90deg, ${rgbToHex(Math.round(a), 0, Math.round(c))}, ${rgbToHex(Math.round(a), 255, Math.round(c))})` },
+              { label: labels[2], value: sliderPos[2], min: 0, max: 100, step: 0.1, displayValue: display[2], trackGradient: `linear-gradient(90deg, ${rgbToHex(Math.round(a), Math.round(b2), 0)}, ${rgbToHex(Math.round(a), Math.round(b2), 255)})` },
             ] as [any, any, any];
           }
         })()}
         onSliderChange={(index, value) => {
-          // Update global slider position directly (no animation)
+          // Update normalized percentage directly (no animation)
           if (sliderTweenRef.current) sliderTweenRef.current.kill();
           const newPos = [...sliderPosRef.current] as [number, number, number];
           newPos[index] = value;
           sliderPosRef.current = newPos;
           setSliderPos(newPos);
 
-          // Convert slider positions to color and update
+          // Convert percentages → actual values → hex
+          const cd = sliderTarget === 'bg' ? bg : fg;
+          const { values } = percentToActual(newPos, sliderMode, cd);
           const setter = sliderTarget === 'bg' ? setManualBg : setManualFg;
-          if (sliderMode === 'OKLCH') {
-            setter(oklchToHex({ l: newPos[0], c: newPos[1], h: newPos[2] }));
-          } else if (sliderMode === 'HSB') {
-            setter(hsbToHex({ h: newPos[0], s: newPos[1], b: newPos[2] }));
-          } else {
-            setter(rgbToHex(Math.round(newPos[0]), Math.round(newPos[1]), Math.round(newPos[2])));
-          }
+          setter(actualToHex(values, sliderMode));
         }}
         onSliderDragStart={onDragStart}
         onSliderDragEnd={onDragEnd}
