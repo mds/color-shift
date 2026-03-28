@@ -19,7 +19,7 @@ export function ThresholdButtons({
   className,
 }: ThresholdButtonsProps) {
   return (
-    <div className={`flex items-center gap-1 ${className ?? ''}`}>
+    <div className={`flex items-center gap-1 px-1 ${className ?? ''}`}>
       {thresholds.map((t, i) => (
         <CSButton
           key={i}

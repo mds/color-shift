@@ -1,7 +1,7 @@
 // IconButton — icon wrapper with hover background
 // Figma: "icon container" component (33:1131) — 2 states: default, hover
 
-import type { ReactNode } from 'react';
+import { forwardRef, type ReactNode } from 'react';
 
 interface IconButtonProps {
   children: ReactNode;
@@ -9,18 +9,23 @@ interface IconButtonProps {
   className?: string;
 }
 
-export function IconButton({ children, onClick, className }: IconButtonProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`
-        flex items-center justify-center px-1.5 py-0.5 rounded-lg shrink-0
-        transition-colors duration-150 hover:bg-[#191919]
-        ${className ?? ''}
-      `}
-    >
-      {children}
-    </button>
-  );
-}
+export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
+  ({ children, onClick, className }, ref) => {
+    return (
+      <button
+        ref={ref}
+        type="button"
+        onClick={onClick}
+        className={`
+          flex items-center justify-center px-1 py-0.5 rounded-lg shrink-0
+          transition-colors duration-150 hover:bg-[#191919]
+          ${className ?? ''}
+        `}
+      >
+        {children}
+      </button>
+    );
+  }
+);
+
+IconButton.displayName = 'IconButton';

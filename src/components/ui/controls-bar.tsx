@@ -24,7 +24,7 @@ import { Score } from './score';
 import { CSButton } from './cs-button';
 import { ThresholdButtons } from './threshold-buttons';
 import { TubeText } from './tube-text';
-import { Arrows } from './arrows';
+import { Arrows, type ArrowsHandle } from './arrows';
 
 type ControlsState = 'default' | 'score' | 'export';
 
@@ -102,22 +102,27 @@ export function ControlsBar({
   const resultsExpandedRef = useRef<HTMLDivElement>(null);
   const rightContainerRef = useRef<HTMLDivElement>(null);
   const algorithmRef = useRef<HTMLButtonElement>(null);
-  const arrowsRef = useRef<HTMLDivElement>(null);
+  const arrowsRef = useRef<ArrowsHandle>(null);
   const exportOptionsRef = useRef<HTMLDivElement>(null);
 
   // Resting styles for each state — the ground truth GSAP enforces
+  // Helper: get both arrow button elements
+  const getArrows = () => [arrowsRef.current?.leftEl, arrowsRef.current?.rightEl].filter(Boolean);
+
+  // Arrows ALWAYS stay position:relative (in flow). Only opacity + transform animate.
+  // Thresholds and export options swap between absolute/relative.
   const applyRestingState = (s: ControlsState) => {
     if (s === 'default') {
       gsap.set(resultsExpandedRef.current, { position: 'absolute', autoAlpha: 0, x: -16 });
-      gsap.set(arrowsRef.current, { position: 'relative', autoAlpha: 1, x: 0 });
+      gsap.set(getArrows(), { autoAlpha: 1, x: 0 });
       gsap.set(exportOptionsRef.current, { position: 'absolute', autoAlpha: 0, x: 16 });
     } else if (s === 'score') {
       gsap.set(resultsExpandedRef.current, { position: 'relative', autoAlpha: 1, x: 0 });
-      gsap.set(arrowsRef.current, { position: 'relative', autoAlpha: 1, x: 0 });
+      gsap.set(getArrows(), { autoAlpha: 1, x: 0 });
       gsap.set(exportOptionsRef.current, { position: 'absolute', autoAlpha: 0, x: 16 });
     } else if (s === 'export') {
       gsap.set(resultsExpandedRef.current, { position: 'absolute', autoAlpha: 0, x: -16 });
-      gsap.set(arrowsRef.current, { position: 'absolute', autoAlpha: 0, x: -16 });
+      gsap.set(getArrows(), { autoAlpha: 0, x: -16 });
       gsap.set(exportOptionsRef.current, { position: 'relative', autoAlpha: 1, x: 0 });
     }
   };
@@ -157,8 +162,7 @@ export function ControlsBar({
 
     // ── default → export ──
     if (prev === 'default' && state === 'export') {
-      gsap.to(arrowsRef.current, { autoAlpha: 0, x: -16, ...d });
-      gsap.set(arrowsRef.current, { position: 'absolute', delay: DUR });
+      gsap.to(getArrows(), { autoAlpha: 0, x: -16, stagger: 0.03, ...d });
       gsap.set(exportOptionsRef.current, { position: 'relative' });
       gsap.fromTo(exportOptionsRef.current, { autoAlpha: 0, x: 16 }, { autoAlpha: 1, x: 0, ...d, onComplete: onDone });
     }
@@ -166,9 +170,7 @@ export function ControlsBar({
     // ── export → default ──
     else if (prev === 'export' && state === 'default') {
       gsap.to(exportOptionsRef.current, { autoAlpha: 0, x: 16, ...d });
-      gsap.set(exportOptionsRef.current, { position: 'absolute', delay: DUR });
-      gsap.set(arrowsRef.current, { position: 'relative' });
-      gsap.fromTo(arrowsRef.current, { autoAlpha: 0, x: -16 }, { autoAlpha: 1, x: 0, ...d, onComplete: onDone });
+      gsap.fromTo(getArrows(), { autoAlpha: 0, x: -16 }, { autoAlpha: 1, x: 0, stagger: 0.03, ...d, onComplete: onDone });
     }
 
     // ── default → score ──
@@ -193,8 +195,7 @@ export function ControlsBar({
       gsap.set(resultsExpandedRef.current, { position: 'absolute' });
       Flip.from(flipState, d);
       gsap.to(resultsExpandedRef.current, { autoAlpha: 0, x: -16, ...d });
-      gsap.to(arrowsRef.current, { autoAlpha: 0, x: -16, ...d });
-      gsap.set(arrowsRef.current, { position: 'absolute', delay: DUR });
+      gsap.to(getArrows(), { autoAlpha: 0, x: -16, stagger: 0.03, ...d });
       gsap.set(exportOptionsRef.current, { position: 'relative' });
       gsap.fromTo(exportOptionsRef.current, { autoAlpha: 0, x: 16 }, { autoAlpha: 1, x: 0, ...d, onComplete: onDone });
     }
@@ -202,9 +203,7 @@ export function ControlsBar({
     // ── export → score ──
     else if (prev === 'export' && state === 'score') {
       gsap.to(exportOptionsRef.current, { autoAlpha: 0, x: 16, ...d });
-      gsap.set(exportOptionsRef.current, { position: 'absolute', delay: DUR });
-      gsap.set(arrowsRef.current, { position: 'relative' });
-      gsap.fromTo(arrowsRef.current, { autoAlpha: 0, x: -16 }, { autoAlpha: 1, x: 0, ...d });
+      gsap.fromTo(getArrows(), { autoAlpha: 0, x: -16 }, { autoAlpha: 1, x: 0, stagger: 0.03, ...d });
       const flipState = Flip.getState(algorithmRef.current);
       gsap.set(resultsExpandedRef.current, { position: 'relative', autoAlpha: 0, x: -16 });
       Flip.from(flipState, d);
@@ -264,7 +263,7 @@ export function ControlsBar({
           ref={algorithmRef}
           type="button"
           onClick={onAlgorithmToggle}
-          className="flex items-center justify-center p-2 rounded-lg shrink-0 transition-colors duration-150 hover:bg-[#191919]"
+          className="no-press flex items-center justify-center p-2 rounded-lg shrink-0 transition-colors duration-150 hover:bg-[#191919]"
         >
           <TubeText
             text={algorithm === 'wcag' ? 'WCAG' : 'APCA'}
@@ -273,13 +272,8 @@ export function ControlsBar({
           />
         </button>
 
-        {/* Arrows — visible in default, hidden in export, fills the middle */}
-        <div
-          ref={arrowsRef}
-          className="flex-1"
-        >
-          <Arrows onLeft={onLeftArrow} onRight={onRightArrow} />
-        </div>
+        {/* Arrows — visible in default, hidden in export */}
+        <Arrows ref={arrowsRef} onLeft={onLeftArrow} onRight={onRightArrow} className="flex-1 mr-1" />
 
         {/* Export group — pinned right: [export-options] [EXPORT button] */}
         <div className="flex items-center gap-1 ml-auto shrink-0 relative">
@@ -299,14 +293,13 @@ export function ControlsBar({
             className={`
               flex items-center justify-center p-2 rounded-lg shrink-0
               transition-colors duration-150
-              ${state !== 'export' ? 'hover:bg-[#191919]' : ''}
+              ${state === 'export' ? 'bg-[#191919]' : 'hover:bg-[#191919]'}
             `}
-            style={state === 'export' ? { backgroundColor: accentDark } : undefined}
           >
             <TubeText
               text={state === 'export' ? 'CLOSE' : 'EXPORT'}
               className="font-mono text-xs leading-none whitespace-nowrap"
-              style={{ color: state === 'export' ? accent : '#a39f9f' }}
+              style={{ color: '#a39f9f' }}
             />
           </button>
         </div>
