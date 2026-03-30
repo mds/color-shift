@@ -30,6 +30,7 @@ interface ControlContainerProps {
   onSliderDragStart?: () => void;
   onSliderDragEnd?: () => void;
   onSlidersClose?: () => void;
+  onGripClick?: () => void;
 
   // Controls bar
   controlsState: 'default' | 'score' | 'export';
@@ -67,6 +68,7 @@ export function ControlContainer({
   onSliderDragStart,
   onSliderDragEnd,
   onSlidersClose,
+  onGripClick,
   controlsState,
   bgHex,
   fgHex,
@@ -100,7 +102,7 @@ export function ControlContainer({
       >
         <div className="overflow-hidden">
           <div
-            className="flex flex-col gap-2 w-full pb-4 transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
+            className="flex flex-col gap-4 w-full pb-4 transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
             style={{
               opacity: slidersExpanded ? 1 : 0,
               transform: slidersExpanded ? 'translateY(0)' : 'translateY(16px)',

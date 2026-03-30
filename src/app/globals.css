@@ -3,151 +3,142 @@
 /* ── Motion Parameters (DialKit controllable) ─────────────────────── */
 
 :root {
-  --color-duration: 0.4;
-  --photo-duration: 0.6;
-  --photo-opacity: 0.3;
-  --squish-scale: 0.85;
-  --squish-duration: 0.15;
-  --pop-scale: 1.05;
-  --pop-duration: 0.1;
-  --exit-duration: 0.25;
-  --enter-duration: 0.35;
-  --enter-overshoot: 1.4;
+    --color-duration: 0.4;
+    --photo-duration: 0.6;
+    --photo-opacity: 0.3;
+    --squish-scale: 0.85;
+    --squish-duration: 0.15;
+    --pop-scale: 1.05;
+    --pop-duration: 0.1;
+    --exit-duration: 0.25;
+    --enter-duration: 0.35;
+    --enter-overshoot: 1.4;
 }
 
 /* ── Tailwind v4 Theme Tokens ─────────────────────────────────────── */
 
 @theme inline {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-input-mono);
-  --font-specimen: var(--font-departure-mono);
+    --font-sans: var(--font-geist-sans);
+    --font-mono: var(--font-input-mono);
+    --font-specimen: var(--font-departure-mono);
 }
 
 /* ── Base ──────────────────────────────────────────────────────────── */
 
-html, body {
-  height: 100%;
-  margin: 0;
-  overflow: hidden;
-  -webkit-font-smoothing: antialiased;
+html,
+body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
 }
 
 /* ── Button Press (squish → pop → settle) ────────────────────────── */
 
 button:not(.no-press) {
-  transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1);
-  will-change: transform;
+    transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+    will-change: transform;
 }
 
 button:not(.no-press):active {
-  transform: scale(0.95);
-  transition: transform 0.05s ease-out;
+    transform: scale(0.95);
+    transition: transform 0.05s ease-out;
 }
 
 @keyframes button-pop {
-  0%   { transform: scale(0.95); }
-  100% { transform: scale(1); }
+    0% {
+        transform: scale(0.95);
+    }
+    100% {
+        transform: scale(1);
+    }
 }
 
 button:not(.no-press):not(:active) {
-  animation: button-pop 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+    animation: button-pop 0.2s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  button { transition: none; animation: none; }
-  button:active { transform: none; }
+    button {
+        transition: none;
+        animation: none;
+    }
+    button:active {
+        transform: none;
+    }
 }
 
 /* ── Slider Styling ───────────────────────────────────────────────── */
 
 input[type="range"] {
-  -webkit-appearance: none;
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
-  height: 20px;
-  width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+    height: 20px;
+    width: 100%;
 }
 
 input[type="range"]::-webkit-slider-track {
-  height: 6px;
-  border-radius: 3px;
+    height: 6px;
+    border-radius: 3px;
 }
+
+/* Native thumb hidden — custom grip rendered in React */
 
 input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: white;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  margin-top: -5px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-  transition: transform 0.1s ease;
-}
-
-input[type="range"]::-webkit-slider-thumb:hover {
-  transform: scale(1.15);
-}
-
-input[type="range"]::-webkit-slider-thumb:active {
-  transform: scale(1.05);
-}
-
-/* Light theme thumb */
-[data-theme="light"] input[type="range"]::-webkit-slider-thumb {
-  background: #222;
-  border-color: rgba(0, 0, 0, 0.3);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
-}
-
-/* Firefox */
-input[type="range"]::-moz-range-track {
-  height: 6px;
-  border-radius: 3px;
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
 }
 
 input[type="range"]::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: white;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
 }
 
-[data-theme="light"] input[type="range"]::-moz-range-thumb {
-  background: #222;
-  border-color: rgba(0, 0, 0, 0.3);
+input[type="range"]::-moz-range-track {
+    height: 6px;
+    border-radius: 3px;
 }
 
 /* ── Specimen Input ───────────────────────────────────────────────── */
 
 .specimen-input::placeholder {
-  opacity: 0.3;
+    opacity: 0.3;
 }
 
 .specimen-input::selection {
-  background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.2);
 }
 
 /* ── Spinner ──────────────────────────────────────────────────────── */
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .animate-spin {
-  animation: spin 1s linear infinite;
+    animation: spin 1s linear infinite;
 }
 
 /* ── Reduced Motion ───────────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }

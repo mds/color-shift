@@ -491,6 +491,7 @@ export function ColorShift() {
         onSliderDragEnd={onDragEnd}
         onSliderModeChange={(m) => setSliderMode(m)}
         onSlidersClose={() => setSlidersExpanded(false)}
+        onGripClick={() => setSlidersExpanded(prev => !prev)}
         controlsState={controlsState}
         bgHex={bgHex}
         fgHex={fgHex}
