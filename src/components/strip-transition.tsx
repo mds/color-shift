@@ -77,6 +77,11 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       }
     }, [showText]);
 
+    const timelineRef = useRef<gsap.core.Timeline | null>(null);
+
+    // Kill timeline on unmount
+    useEffect(() => () => { timelineRef.current?.kill(); }, []);
+
     const handleUp = useCallback(() => {
       const text = textRef.current;
       const circle = circleRef.current;
@@ -91,7 +96,9 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       const enterDur = getMotionValue('--enter-duration', 0.35);
       const overshoot = getMotionValue('--enter-overshoot', 1.4);
 
+      timelineRef.current?.kill();
       const tl = gsap.timeline();
+      timelineRef.current = tl;
       tl.to(active, { scale: popScale, duration: popDur, ease: 'power2.out' })
         .to(active, { scale: 0, opacity: 0, duration: exitDur, ease: 'power2.in' })
         .fromTo(incoming,

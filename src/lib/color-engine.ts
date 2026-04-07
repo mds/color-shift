@@ -96,10 +96,15 @@ export function rgbToHex(r: number, g: number, b: number): string {
 
 // ── Max Chroma (binary search for sRGB gamut boundary) ──────────────────
 
+// Cache keyed on quantized (l, h) — avoids repeated 30-iteration binary searches
+const maxChromaCache = new Map<string, number>();
+
 export function maxChroma(l: number, h: number): number {
-  // l is 0-100 percentage, h is 0-360 degrees
-  // Binary search: find highest chroma where formatHex still produces a valid color
-  // that doesn't clip to a different value
+  const key = `${l.toFixed(1)},${Math.round(h)}`;
+  const cached = maxChromaCache.get(key);
+  if (cached !== undefined) return cached;
+
+  // Binary search for highest chroma where formatHex round-trips without clipping
   const lNorm = l / 100;
   let lo = 0;
   let hi = 0.4; // OKLCH chroma theoretical max for sRGB is ~0.37
@@ -114,7 +119,6 @@ export function maxChroma(l: number, h: number): number {
       continue;
     }
 
-    // Check if the color round-trips cleanly (not clipped)
     const roundtrip = toOklch(parse(hex)!);
     if (!roundtrip) {
       hi = mid;
@@ -123,16 +127,26 @@ export function maxChroma(l: number, h: number): number {
 
     const chromaDiff = Math.abs((roundtrip.c ?? 0) - mid);
     if (chromaDiff < 0.005) {
-      // Color survived round-trip, it's in gamut
       best = mid;
       lo = mid;
     } else {
-      // Color was clipped, reduce chroma
       hi = mid;
     }
   }
 
-  return Number(best.toFixed(3));
+  const result = Number(best.toFixed(3));
+  maxChromaCache.set(key, result);
+  return result;
+}
+
+// ── Luminance Utility ─────────────────────────────────────────────────
+
+export function isHexDark(hex: string, threshold = 128): boolean {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 < threshold;
 }
 
 // ── Contrast: WCAG 2 ────────────────────────────────────────────────────
@@ -459,8 +473,8 @@ export function extractContrastPair(
       if (score > bestScore) {
         bestScore = score;
         // Darker color as bg, lighter as fg
-        const aLum = relativeLuminanceFromHex(a.hex);
-        const bLum = relativeLuminanceFromHex(b.hex);
+        const aLum = relativeLuminance(a.hex);
+        const bLum = relativeLuminance(b.hex);
         bestPair = aLum < bLum
           ? { bg: a.hex, fg: b.hex }
           : { bg: b.hex, fg: a.hex };
@@ -471,7 +485,7 @@ export function extractContrastPair(
   if (!bestPair) {
     // Fallback: darkest and lightest
     const sorted = [...swatches].sort((a, b) =>
-      relativeLuminanceFromHex(a.hex) - relativeLuminanceFromHex(b.hex)
+      relativeLuminance(a.hex) - relativeLuminance(b.hex)
     );
     bestPair = { bg: sorted[0].hex, fg: sorted[sorted.length - 1].hex };
   }
@@ -482,13 +496,6 @@ export function extractContrastPair(
   return { bg: bestPair.bg, fg: safeFg };
 }
 
-// Exposed for extractContrastPair scoring
-function relativeLuminanceFromHex(hex: string): number {
-  const parsed = parse(hex);
-  if (!parsed) return 0;
-  const c = toRgb(parsed);
-  return 0.2126 * linearize(c?.r ?? 0) + 0.7152 * linearize(c?.g ?? 0) + 0.0722 * linearize(c?.b ?? 0);
-}
 
 // ── Parse Any Format ───────────────────────────────────────────────────
 
