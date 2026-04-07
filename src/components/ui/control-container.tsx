@@ -54,7 +54,6 @@ interface ControlContainerProps {
   onExportToggle?: () => void;
   onCopyUrl?: () => void;
   onDownloadMd?: () => void;
-  onExport?: () => void;
 
   className?: string;
 }
@@ -90,7 +89,6 @@ export function ControlContainer({
   onExportToggle,
   onCopyUrl,
   onDownloadMd,
-  onExport,
   className,
 }: ControlContainerProps) {
   return (
@@ -149,7 +147,6 @@ export function ControlContainer({
         onExportToggle={onExportToggle}
         onCopyUrl={onCopyUrl}
         onDownloadMd={onDownloadMd}
-        onExport={onExport}
       />
     </div>
   );

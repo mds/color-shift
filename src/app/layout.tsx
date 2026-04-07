@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
-import "dialkit/styles.css";
 import { getGoogleFontsUrl } from "@/lib/fonts";
 import { DevTools } from "@/components/dev-tools";
 

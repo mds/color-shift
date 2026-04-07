@@ -524,7 +524,6 @@ export function ColorShift() {
         onExportToggle={() => setControlsState(s => s === 'export' ? 'default' : 'export')}
         onCopyUrl={copyExport}
         onDownloadMd={() => {}}
-        onExport={() => {}}
       />
     </div>
   );

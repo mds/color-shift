@@ -28,17 +28,6 @@ import { Arrows, type ArrowsHandle } from './arrows';
 
 type ControlsState = 'default' | 'score' | 'export';
 
-function luminance(hex: string): number {
-  const h = hex.replace('#', '');
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return (r * 299 + g * 587 + b * 114) / 1000;
-}
-
-function brighterColor(a: string, b: string): string {
-  return luminance(a) >= luminance(b) ? a : b;
-}
 
 const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)';  // ease-out-quint
 const DUR = 0.2;
@@ -65,7 +54,6 @@ interface ControlsBarProps {
   onExportToggle?: () => void;
   onCopyUrl?: () => void;
   onDownloadMd?: () => void;
-  onExport?: () => void;
   className?: string;
 }
 
@@ -91,7 +79,6 @@ export function ControlsBar({
   onExportToggle,
   onCopyUrl,
   onDownloadMd,
-  onExport,
   className,
 }: ControlsBarProps) {
   const prevStateRef = useRef(state);
@@ -100,7 +87,6 @@ export function ControlsBar({
 
   // Refs for animatable zones
   const resultsExpandedRef = useRef<HTMLDivElement>(null);
-  const rightContainerRef = useRef<HTMLDivElement>(null);
   const algorithmRef = useRef<HTMLButtonElement>(null);
   const arrowsRef = useRef<ArrowsHandle>(null);
   const exportOptionsRef = useRef<HTMLDivElement>(null);
@@ -134,11 +120,6 @@ export function ControlsBar({
       applyRestingState(visualStateRef.current);
     }
   });
-
-  // The brighter of bg/fg — used for selected state inner glow
-  // For EXPORT/CLOSE button: brighter color as bg, darker as text
-  const accent = brighterColor(bgHex, fgHex);
-  const accentDark = accent === bgHex ? fgHex : bgHex;
 
   // Animate transitions — only transform + opacity
   // useLayoutEffect so it runs BEFORE paint, undoing React's style clearing
@@ -242,7 +223,6 @@ export function ControlsBar({
 
       {/* ── Right half: wcag ... arrows export (wcag anchored left) ── */}
       <div
-        ref={rightContainerRef}
         className="flex items-center flex-1 min-w-0 relative"
       >
         {/* Thresholds — hidden in default, animate in from +x when score expanded */}
