@@ -104,11 +104,11 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
     }, [showText]);
 
     return (
-      <div ref={ref} className="relative w-full h-full overflow-hidden flex">
+      <div ref={ref} className="relative w-full h-full overflow-hidden flex flex-col sm:flex-row">
         {/* Color panel */}
         <div
           ref={colorRef}
-          className="w-1/2 h-full flex items-center justify-center relative cursor-pointer select-none"
+          className="w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative cursor-pointer select-none"
           style={{ backgroundColor: bgHex }}
           onMouseDown={handleDown}
           onMouseUp={handleUp}
@@ -138,7 +138,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
         </div>
 
         {/* Photo panel */}
-        <div ref={photoContainerRef} className="w-1/2 h-full relative overflow-hidden">
+        <div ref={photoContainerRef} className="w-full h-1/2 sm:w-1/2 sm:h-full relative overflow-hidden">
           {photo && (
             <>
               <img src={photo.tinyUrl} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
