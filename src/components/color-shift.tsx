@@ -500,7 +500,7 @@ export function ColorShift() {
         algorithm={contrastAlgorithm === 'WCAG2' ? 'wcag' : 'apca'}
         rating={contrast.grade}
         contrastValue={contrast.scoreLabel}
-        thresholds={contrastAlgorithm === 'WCAG2' ? [1.5, 3.0, 4.5, 7.0] : [30, 45, 60, 75]}
+        thresholds={contrastAlgorithm === 'WCAG2' ? [1.5, 3.0, 4.5, 7.0] : [30, 45, 60, 75, 90]}
         activeThreshold={activeThreshold}
         bgState={slidersExpanded && sliderTarget === 'bg' ? 'selected' : 'default'}
         fgState={slidersExpanded && sliderTarget === 'fg' ? 'selected' : 'default'}

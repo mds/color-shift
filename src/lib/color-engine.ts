@@ -6,7 +6,8 @@ import { APCAcontrast, sRGBtoY } from 'apca-w3';
 export type ColorFormat = 'HEX' | 'RGB' | 'HSL' | 'HSB' | 'OKLCH';
 export type SliderMode = 'HSB' | 'OKLCH' | 'RGB';
 export type ContrastAlgorithm = 'WCAG2' | 'APCA';
-export type Grade = 'AAA' | 'AA' | 'AA Large' | 'Fail';
+export type Grade = 'AAA' | 'AA' | 'AA Large' | 'Fail'
+  | 'Body ✓' | 'Content' | 'Headlines' | 'Spot' | 'Min';
 
 export interface HSB {
   h: number; // 0–360
@@ -198,10 +199,12 @@ export function apcaLc(fgHex: string, bgHex: string): number {
 }
 
 function apcaGrade(lc: number): Grade {
-  if (lc >= 75) return 'AAA';
-  if (lc >= 60) return 'AA';
-  if (lc >= 45) return 'AA Large';
-  return 'Fail';
+  if (lc >= 90) return 'Body ✓';    // Preferred for body text (16px/400)
+  if (lc >= 75) return 'Body ✓';    // Minimum for body text (18px/400)
+  if (lc >= 60) return 'Content';   // Content text, not body (24px/400)
+  if (lc >= 45) return 'Headlines'; // Headlines only (36px/400, 24px/700)
+  if (lc >= 30) return 'Spot';      // Spot readable, disabled text, large icons
+  return 'Min';                      // Below minimum for readable text
 }
 
 // ── Unified Contrast API ────────────────────────────────────────────────
@@ -242,10 +245,17 @@ export function getContrastResult(bgHex: string, fgHex: string, algorithm: Contr
 
 export function gradeDescription(grade: Grade | string): string {
   switch (grade) {
+    // WCAG 2
     case 'AAA': return 'Valid for all text sizes';
     case 'AA': return 'Valid for normal text and above';
     case 'AA Large': return 'Valid for large text only';
     case 'Fail': return 'Does not meet contrast requirements';
+    // APCA
+    case 'Body ✓': return 'Body text — columns, fluent reading';
+    case 'Content': return 'Content text, not body columns (24px+)';
+    case 'Headlines': return 'Large headlines and bold text only';
+    case 'Spot': return 'Spot readable — large icons, disabled text';
+    case 'Min': return 'Below minimum for readable text';
     default: return '';
   }
 }
@@ -295,7 +305,7 @@ export function generateRandomPair(): { bg: string; fg: string } {
 // ── Threshold Bumping ──────────────────────────────────────────────────
 
 const WCAG_THRESHOLDS: number[] = [1.5, 3.0, 4.5, 7.0];
-const APCA_THRESHOLDS: number[] = [30, 45, 60, 75];
+const APCA_THRESHOLDS: number[] = [30, 45, 60, 75, 90];
 
 export function getThresholds(algorithm: ContrastAlgorithm): number[] {
   return algorithm === 'APCA' ? APCA_THRESHOLDS : WCAG_THRESHOLDS;
