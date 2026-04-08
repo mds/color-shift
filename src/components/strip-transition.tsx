@@ -162,13 +162,18 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
         </div>
 
         {/* Photo panel */}
-        <div ref={photoContainerRef} className="w-full h-1/2 sm:w-1/2 sm:h-full relative overflow-hidden">
-          {photo && (
-            <>
-              <img src={photo.tinyUrl} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
-              <img src={photo.url} alt={photo.alt} className="absolute inset-0 w-full h-full object-cover" />
-            </>
-          )}
+        <div className="w-full h-1/2 sm:w-1/2 sm:h-full relative overflow-hidden">
+          {/* Transitioning image layer (scale/blur/etc. happens here) */}
+          <div ref={photoContainerRef} className="absolute inset-0">
+            {photo && (
+              <>
+                <img src={photo.tinyUrl} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
+                <img src={photo.url} alt={photo.alt} className="absolute inset-0 w-full h-full object-cover" />
+              </>
+            )}
+          </div>
+
+          {/* Photo credit — static, not affected by photo transition */}
           {photo && (
             <div className="absolute bottom-3 left-4 right-3 z-10">
               <div className="text-white/50 text-[10px] font-mono drop-shadow-sm">
