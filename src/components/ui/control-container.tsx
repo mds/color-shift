@@ -92,15 +92,15 @@ export function ControlContainer({
   className,
 }: ControlContainerProps) {
   return (
-    <div className={`flex flex-col bg-black p-2 w-full ${className ?? ''}`}>
+    <div className={`flex flex-col bg-black p-2 w-full overflow-visible ${className ?? ''}`}>
       {/* Slider panel — always mounted, animated with CSS grid rows + transform */}
       <div
-        className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
+        className="grid overflow-visible transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
         style={{ gridTemplateRows: slidersExpanded ? '1fr' : '0fr' }}
       >
-        <div className="overflow-hidden">
+        <div className="overflow-visible" style={{ overflowY: 'clip' }}>
           <div
-            className="flex flex-col gap-4 w-full pb-4 transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
+            className="flex flex-col gap-4 w-full pb-4 overflow-visible transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
             style={{
               opacity: slidersExpanded ? 1 : 0,
               transform: slidersExpanded ? 'translateY(0)' : 'translateY(16px)',

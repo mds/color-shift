@@ -64,9 +64,9 @@ export function ColorSlider({
   const layerClass = 'absolute inset-0 my-auto h-2 rounded-[52px] transition-opacity duration-300 linear';
 
   return (
-    <div className={`flex flex-col gap-1 w-full ${className ?? ''}`}>
+    <div className={`flex flex-col gap-1 w-full overflow-visible ${className ?? ''}`}>
       {/* Track + grip + input */}
-      <div ref={trackRef} className="relative flex items-center h-6 w-full">
+      <div ref={trackRef} className="relative flex items-center h-6 w-full overflow-visible">
         {/* Gradient layers */}
         <div
           className={layerClass}
@@ -108,9 +108,10 @@ export function ColorSlider({
           <div
             className="absolute inset-0 m-auto rounded-full"
             style={{
-              width: 8,
-              height: 8,
+              width: 10,
+              height: 10,
               backgroundColor: 'white',
+              boxShadow: '0 0 1px 1px rgba(0,0,0,0.2)',
               transform: expanded ? 'scale(0)' : 'scale(1)',
               opacity: expanded ? 0 : 1,
               transition: 'transform 0.25s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.25s cubic-bezier(0.23, 1, 0.32, 1)',
@@ -145,7 +146,7 @@ export function ColorSlider({
           onPointerEnter={checkGripHover}
           onPointerLeave={() => { setHovered(false); setDragging(false); }}
           onPointerDown={() => { setDragging(true); onDragStart?.(); }}
-          onPointerUp={() => { setDragging(false); onDragEnd?.(); }}
+          onPointerUp={() => { setDragging(false); setHovered(true); onDragEnd?.(); }}
           className="absolute inset-0 w-full z-10 opacity-0 cursor-pointer"
         />
       </div>
