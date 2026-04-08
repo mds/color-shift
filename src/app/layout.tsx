@@ -4,6 +4,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { getGoogleFontsUrl } from "@/lib/fonts";
 import { DevTools } from "@/components/dev-tools";
+import { AgentationWrapper } from "@/components/agentation-wrapper";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -72,6 +73,7 @@ export default function RootLayout({
       <body>
         {children}
         <DevTools />
+        <AgentationWrapper />
       </body>
     </html>
   );

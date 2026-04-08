@@ -29,23 +29,23 @@ export function Swatches({
   return (
     <div className={`flex items-center gap-1 flex-1 min-w-0 ${className ?? ''}`}>
       <CSButton
-        label={bgHex.replace('#', '').toUpperCase()}
-        swatchColor={bgHex}
-        accentColor={bgHex}
-        state={bgState}
-        animated
-        onClick={onBgClick}
-      />
-      <IconButton onClick={onSwap}>
-        <SwapArrowsIcon className="size-6 text-[#a39f9f]" />
-      </IconButton>
-      <CSButton
         label={fgHex.replace('#', '').toUpperCase()}
         swatchColor={fgHex}
         accentColor={fgHex}
         state={fgState}
         animated
         onClick={onFgClick}
+      />
+      <IconButton onClick={onSwap}>
+        <SwapArrowsIcon className="size-6 text-[#a39f9f]" />
+      </IconButton>
+      <CSButton
+        label={bgHex.replace('#', '').toUpperCase()}
+        swatchColor={bgHex}
+        accentColor={bgHex}
+        state={bgState}
+        animated
+        onClick={onBgClick}
       />
     </div>
   );
