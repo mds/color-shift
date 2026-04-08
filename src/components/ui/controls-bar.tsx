@@ -100,16 +100,13 @@ export function ControlsBar({
   const applyRestingState = (s: ControlsState) => {
     if (s === 'default') {
       gsap.set(resultsExpandedRef.current, { position: 'absolute', autoAlpha: 0, x: -16 });
-      gsap.set(getArrows(), { autoAlpha: 1, x: 0 });
-      gsap.set(exportOptionsRef.current, { position: 'absolute', autoAlpha: 0, x: 16 });
+      gsap.set(exportOptionsRef.current, { autoAlpha: 0, x: 16, position: 'absolute' });
     } else if (s === 'score') {
       gsap.set(resultsExpandedRef.current, { position: 'relative', autoAlpha: 1, x: 0 });
-      gsap.set(getArrows(), { autoAlpha: 1, x: 0 });
-      gsap.set(exportOptionsRef.current, { position: 'absolute', autoAlpha: 0, x: 16 });
+      gsap.set(exportOptionsRef.current, { autoAlpha: 0, x: 16, position: 'absolute' });
     } else if (s === 'export') {
       gsap.set(resultsExpandedRef.current, { position: 'absolute', autoAlpha: 0, x: -16 });
-      gsap.set(getArrows(), { autoAlpha: 0, x: -16 });
-      gsap.set(exportOptionsRef.current, { position: 'relative', autoAlpha: 1, x: 0 });
+      gsap.set(exportOptionsRef.current, { autoAlpha: 1, x: 0, position: 'relative' });
     }
   };
 
@@ -143,15 +140,15 @@ export function ControlsBar({
 
     // ── default → export ──
     if (prev === 'default' && state === 'export') {
-      gsap.to(getArrows(), { autoAlpha: 0, x: -16, stagger: 0.03, ...d });
+      // Arrows fade handled by CSS transition on wrapper
       gsap.set(exportOptionsRef.current, { position: 'relative' });
       gsap.fromTo(exportOptionsRef.current, { autoAlpha: 0, x: 16 }, { autoAlpha: 1, x: 0, ...d, onComplete: onDone });
     }
 
     // ── export → default ──
     else if (prev === 'export' && state === 'default') {
-      gsap.to(exportOptionsRef.current, { autoAlpha: 0, x: 16, ...d });
-      gsap.fromTo(getArrows(), { autoAlpha: 0, x: -16 }, { autoAlpha: 1, x: 0, stagger: 0.03, ...d, onComplete: onDone });
+      gsap.to(exportOptionsRef.current, { autoAlpha: 0, x: 16, ...d, onComplete: onDone });
+      gsap.set(exportOptionsRef.current, { position: 'absolute', delay: DUR });
     }
 
     // ── default → score ──
@@ -176,7 +173,7 @@ export function ControlsBar({
       gsap.set(resultsExpandedRef.current, { position: 'absolute' });
       Flip.from(flipState, d);
       gsap.to(resultsExpandedRef.current, { autoAlpha: 0, x: -16, ...d });
-      gsap.to(getArrows(), { autoAlpha: 0, x: -16, stagger: 0.03, ...d });
+      // Arrows fade handled by CSS transition on wrapper
       gsap.set(exportOptionsRef.current, { position: 'relative' });
       gsap.fromTo(exportOptionsRef.current, { autoAlpha: 0, x: 16 }, { autoAlpha: 1, x: 0, ...d, onComplete: onDone });
     }
@@ -184,7 +181,7 @@ export function ControlsBar({
     // ── export → score ──
     else if (prev === 'export' && state === 'score') {
       gsap.to(exportOptionsRef.current, { autoAlpha: 0, x: 16, ...d });
-      gsap.fromTo(getArrows(), { autoAlpha: 0, x: -16 }, { autoAlpha: 1, x: 0, stagger: 0.03, ...d });
+      gsap.set(exportOptionsRef.current, { position: 'absolute', delay: DUR });
       const flipState = Flip.getState(algorithmRef.current);
       gsap.set(resultsExpandedRef.current, { position: 'relative', autoAlpha: 0, x: -16 });
       Flip.from(flipState, d);
@@ -197,9 +194,9 @@ export function ControlsBar({
   }, [state]);
 
   return (
-    <div className={`flex items-center bg-black w-full ${className ?? ''}`}>
-      {/* ── Left half: swatches ... score (score anchored right) ── */}
-      <div className="flex items-center flex-1 min-w-0">
+    <div className={`flex flex-wrap sm:flex-nowrap items-center gap-y-2 sm:gap-y-0 bg-black w-full ${className ?? ''}`}>
+      {/* ── Row 1: Swatches + Arrows + Export ── */}
+      <div className="flex items-center w-full sm:w-auto sm:flex-1 min-w-0">
         <Swatches
           bgHex={bgHex}
           fgHex={fgHex}
@@ -210,63 +207,45 @@ export function ControlsBar({
           onSwap={onSwap}
         />
 
-        {/* Score — anchored to the right of the left half, always visible */}
+        {/* Score — desktop only in row 1 */}
         <Score
           type={algorithm}
           state={state === 'score' ? 'selected' : 'default'}
           rating={rating}
           value={contrastValue}
           onClick={onResultsToggle}
-          className="ml-auto relative z-10"
+          className="ml-auto relative z-10 hidden sm:flex"
         />
       </div>
 
-      {/* ── Right half: wcag ... arrows export (wcag anchored left) ── */}
-      <div
-        className="flex items-center flex-1 min-w-0 relative"
-      >
-        {/* Thresholds — hidden in default, animate in from +x when score expanded */}
+      {/* ── Right side of row 1 (mobile) / part of single row (desktop) ── */}
+      <div className="flex items-center shrink-0 sm:hidden">
+        {/* Arrows — visible in default/score, faded in export */}
         <div
-          ref={resultsExpandedRef}
-          className="flex items-center gap-1 shrink-0"
+          style={{
+            opacity: state === 'export' ? 0 : 1,
+            pointerEvents: state === 'export' ? 'none' : 'auto',
+            transition: `opacity ${DUR}s ${EASE_OUT}`,
+          }}
+          className="mr-1"
         >
-          <ThresholdButtons
-            thresholds={thresholds}
-            activeThreshold={activeThreshold}
-            algorithm={algorithm}
-            onSelect={onThresholdSelect}
-          />
+          <Arrows ref={arrowsRef} onLeft={onLeftArrow} onRight={onRightArrow} />
         </div>
 
-        {/* WCAG/APCA — anchored to the left of the right half */}
-        <button
-          ref={algorithmRef}
-          type="button"
-          onClick={onAlgorithmToggle}
-          className="no-press flex items-center justify-center p-2 rounded-lg shrink-0 transition-colors duration-150 hover:bg-[#191919]"
-        >
-          <TubeText
-            text={algorithm === 'wcag' ? 'WCAG' : 'APCA'}
-            className="font-mono text-xs leading-none whitespace-nowrap"
-            style={{ color: '#a39f9f' }}
-          />
-        </button>
-
-        {/* Arrows — visible in default, hidden in export */}
-        <Arrows ref={arrowsRef} onLeft={onLeftArrow} onRight={onRightArrow} className="flex-1 mr-1" />
-
-        {/* Export group — pinned right: [export-options] [EXPORT button] */}
-        <div className="flex items-center gap-1 ml-auto shrink-0 relative">
-          {/* Export options — hidden in default, visible in export */}
+        {/* Export group */}
+        <div className="flex items-center gap-1 shrink-0 relative">
           <div
-            ref={exportOptionsRef}
             className="flex items-center gap-1"
+            style={{
+              opacity: state === 'export' ? 1 : 0,
+              pointerEvents: state === 'export' ? 'auto' : 'none',
+              position: state === 'export' ? 'relative' : 'absolute',
+              transition: `opacity ${DUR}s ${EASE_OUT}`,
+            }}
           >
             <CSButton label="COPY URL" onClick={onCopyUrl} />
             <CSButton label="DOWNLOAD .MD" onClick={onDownloadMd} />
           </div>
-
-          {/* EXPORT — always visible, always rightmost */}
           <button
             type="button"
             onClick={onExportToggle}
@@ -283,6 +262,89 @@ export function ControlsBar({
               style={{ color: '#a39f9f' }}
             />
           </button>
+        </div>
+      </div>
+
+      {/* ── Row 2: Score + Thresholds + WCAG/APCA + (desktop: Arrows + Export) ── */}
+      <div className="flex items-center w-full sm:w-auto sm:flex-1 min-w-0 relative">
+        {/* Score — mobile only in row 2 */}
+        <Score
+          type={algorithm}
+          state={state === 'score' ? 'selected' : 'default'}
+          rating={rating}
+          value={contrastValue}
+          onClick={onResultsToggle}
+          className="relative z-10 sm:hidden"
+        />
+
+        {/* Thresholds — hidden in default, animate in from +x when score expanded */}
+        <div
+          ref={resultsExpandedRef}
+          className="flex items-center gap-1 shrink-0"
+        >
+          <ThresholdButtons
+            thresholds={thresholds}
+            activeThreshold={activeThreshold}
+            algorithm={algorithm}
+            onSelect={onThresholdSelect}
+          />
+        </div>
+
+        {/* WCAG/APCA */}
+        <button
+          ref={algorithmRef}
+          type="button"
+          onClick={onAlgorithmToggle}
+          className="no-press flex items-center justify-center p-2 rounded-lg shrink-0 transition-colors duration-150 hover:bg-[#191919]"
+        >
+          <TubeText
+            text={algorithm === 'wcag' ? 'WCAG' : 'APCA'}
+            className="font-mono text-xs leading-none whitespace-nowrap"
+            style={{ color: '#a39f9f' }}
+          />
+        </button>
+
+        {/* Arrows + Export — desktop only (mobile version is in row 1) */}
+        <div className="hidden sm:flex items-center flex-1 min-w-0">
+          <div
+            style={{
+              opacity: state === 'export' ? 0 : 1,
+              pointerEvents: state === 'export' ? 'none' : 'auto',
+              transition: `opacity ${DUR}s ${EASE_OUT}`,
+            }}
+            className="flex-1 mr-1"
+          >
+            <Arrows onLeft={onLeftArrow} onRight={onRightArrow} />
+          </div>
+
+          <div className="flex items-center gap-1 ml-auto shrink-0 relative">
+            {/* Export options — hidden in default, visible in export */}
+            <div
+              ref={exportOptionsRef}
+              className="flex items-center gap-1"
+            >
+              <CSButton label="COPY URL" onClick={onCopyUrl} />
+              <CSButton label="DOWNLOAD .MD" onClick={onDownloadMd} />
+            </div>
+
+            {/* EXPORT — always visible, always rightmost */}
+            <button
+              type="button"
+              onClick={onExportToggle}
+              className={`
+                flex items-center justify-center p-2 rounded-lg shrink-0
+                transition-colors duration-150
+                ${state === 'export' ? 'bg-[#191919]' : 'hover:bg-[#191919]'}
+              `}
+              style={state === 'export' ? { boxShadow: 'inset 0 0 0 1px #2B2727' } : undefined}
+            >
+              <TubeText
+                text={state === 'export' ? 'CLOSE' : 'EXPORT'}
+                className="font-mono text-xs leading-none whitespace-nowrap"
+                style={{ color: '#a39f9f' }}
+              />
+            </button>
+          </div>
         </div>
       </div>
     </div>

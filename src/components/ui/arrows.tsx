@@ -9,6 +9,7 @@ import { LeftArrowIcon, RightArrowIcon } from './icons';
 export interface ArrowsHandle {
   leftEl: HTMLButtonElement | null;
   rightEl: HTMLButtonElement | null;
+  containerEl: HTMLDivElement | null;
 }
 
 interface ArrowsProps {
@@ -21,14 +22,16 @@ export const Arrows = forwardRef<ArrowsHandle, ArrowsProps>(
   ({ onLeft, onRight, className }, ref) => {
     const leftRef = useRef<HTMLButtonElement>(null);
     const rightRef = useRef<HTMLButtonElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     useImperativeHandle(ref, () => ({
       get leftEl() { return leftRef.current; },
       get rightEl() { return rightRef.current; },
+      get containerEl() { return containerRef.current; },
     }));
 
     return (
-      <div className={`flex items-center justify-end gap-1 ${className ?? ''}`}>
+      <div ref={containerRef} className={`flex items-center justify-end ${className ?? ''}`}>
         <IconButton ref={leftRef} onClick={onLeft}>
           <LeftArrowIcon className="size-6 text-[#a39f9f]" />
         </IconButton>

@@ -1,12 +1,29 @@
 import { NextResponse } from 'next/server';
 
+// Diverse query pool — Unsplash /photos/random with no filters returns a
+// narrow curated set, so we rotate through varied queries to force breadth.
+const QUERIES = [
+  'nature', 'architecture', 'abstract', 'texture', 'city', 'landscape',
+  'portrait', 'street', 'minimal', 'ocean', 'mountain', 'forest',
+  'desert', 'sky', 'neon', 'vintage', 'food', 'macro', 'wildlife',
+  'interior', 'fashion', 'art', 'industrial', 'graffiti', 'flower',
+  'space', 'night', 'rain', 'fog', 'sunset', 'snow', 'autumn',
+  'reflection', 'shadow', 'bokeh', 'pattern', 'travel', 'coffee',
+  'music', 'sport', 'vehicle', 'technology', 'plant', 'bird',
+];
+
+function pickQueries(count: number): string[] {
+  // Shuffle and pick unique queries so each fetch gets different buckets
+  const pool = [...QUERIES].sort(() => Math.random() - 0.5);
+  return pool.slice(0, count);
+}
+
 function mapPhoto(photo: Record<string, unknown>) {
   const urls = photo.urls as Record<string, string>;
   const user = photo.user as Record<string, unknown>;
   const userLinks = user.links as Record<string, string>;
   const links = photo.links as Record<string, string>;
 
-  // Build a tiny 32px URL for pixelated mosaic placeholder
   const rawUrl = urls.raw as string;
   const tinyUrl = rawUrl.includes('?')
     ? `${rawUrl}&w=32&q=50`
@@ -25,6 +42,21 @@ function mapPhoto(photo: Record<string, unknown>) {
   };
 }
 
+async function fetchOne(query: string, key: string): Promise<Record<string, unknown> | null> {
+  try {
+    const res = await fetch(
+      `https://api.unsplash.com/photos/random?orientation=landscape&query=${encodeURIComponent(query)}`,
+      { headers: { Authorization: `Client-ID ${key}` }, cache: 'no-store' },
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    // With query param and no count, returns a single object
+    return Array.isArray(data) ? data[0] : data;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(request: Request) {
   const key = process.env.UNSPLASH_ACCESS_KEY;
   if (!key) {
@@ -35,19 +67,15 @@ export async function GET(request: Request) {
   const count = Math.min(parseInt(searchParams.get('count') ?? '1'), 30);
 
   try {
-    const res = await fetch(
-      `https://api.unsplash.com/photos/random?orientation=landscape&count=${count}`,
-      { headers: { Authorization: `Client-ID ${key}` } },
-    );
+    // Fire parallel requests with different query terms for maximum diversity
+    const queries = pickQueries(count);
+    const results = await Promise.all(queries.map(q => fetchOne(q, key)));
+    const photos = results.filter((p): p is Record<string, unknown> => p !== null);
 
-    if (!res.ok) {
-      return NextResponse.json({ error: 'Unsplash API error' }, { status: res.status });
+    if (photos.length === 0) {
+      return NextResponse.json({ error: 'No photos returned' }, { status: 502 });
     }
 
-    const data = await res.json();
-
-    // count=1 still returns an array when using count param
-    const photos = Array.isArray(data) ? data : [data];
     return NextResponse.json(photos.map(mapPhoto));
   } catch {
     return NextResponse.json({ error: 'Failed to fetch photos' }, { status: 500 });
