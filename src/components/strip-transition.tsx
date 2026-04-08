@@ -153,7 +153,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
             </>
           )}
           {photo && (
-            <div className="absolute bottom-3 left-3 right-3 z-10">
+            <div className="absolute bottom-3 left-4 right-3 z-10">
               <div className="text-white/50 text-[10px] font-mono drop-shadow-sm">
                 <a href={photo.photographerUrl} target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-white/90">{photo.photographer}</a>
                 <span> / </span>

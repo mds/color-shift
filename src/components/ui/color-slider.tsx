@@ -51,17 +51,17 @@ export function ColorSlider({
   const expanded = hovered || dragging;
 
   // Check if pointer is within 16px of the grip center
-  const checkGripHover = useCallback((e: React.PointerEvent) => {
+  const checkGripHover = useCallback((e: React.MouseEvent) => {
     const track = trackRef.current;
     if (!track) return;
     const rect = track.getBoundingClientRect();
     const pointerX = e.clientX - rect.left;
-    const gripX = (pct / 100) * rect.width;
+    const gripX = 4 + (pct / 100) * (rect.width - 8);
     setHovered(Math.abs(pointerX - gripX) < 16);
   }, [pct]);
 
   const innerStroke = `inset 0 0 0 1px rgba(255,255,255,${trackDark ? 0.1 : 0})`;
-  const layerClass = 'absolute inset-0 my-auto h-2 rounded-[52px] transition-opacity duration-300 linear';
+  const layerClass = 'absolute inset-x-1 inset-y-0 my-auto h-2 rounded-[52px] transition-opacity duration-300 linear';
 
   return (
     <div className={`flex flex-col gap-1 w-full overflow-visible ${className ?? ''}`}>
@@ -93,43 +93,29 @@ export function ColorSlider({
           }}
         />
 
-        {/* Custom grip — purely visual, pointer-events-none */}
+        {/* Grip — 24px container, white dot grows from 10px to 24px on hover */}
         <div
           className="absolute top-0 pointer-events-none"
           style={{
-            left: `${pct}%`,
+            left: `calc(4px + (100% - 8px) * ${pct / 100})`,
             transform: 'translateX(-50%)',
             width: 24,
             height: 24,
             transition: dragging ? 'none' : 'left 0.15s cubic-bezier(0.23, 1, 0.32, 1)',
           }}
         >
-          {/* Small dot (8px white) — scales down when expanded */}
           <div
             className="absolute inset-0 m-auto rounded-full"
             style={{
-              width: 10,
-              height: 10,
-              backgroundColor: 'white',
-              boxShadow: '0 0 1px 1px rgba(0,0,0,0.2)',
-              transform: expanded ? 'scale(0)' : 'scale(1)',
-              opacity: expanded ? 0 : 1,
-              transition: 'transform 0.25s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.25s cubic-bezier(0.23, 1, 0.32, 1)',
-            }}
-          />
-          {/* Glass circle (24px) — scales up when expanded */}
-          <div
-            className="absolute inset-0 rounded-full"
-            style={{
-              width: 24,
-              height: 24,
-              backgroundColor: 'rgba(255,255,255,0.35)',
-              backdropFilter: 'blur(3px)',
-              WebkitBackdropFilter: 'blur(3px)',
-              boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.15), 0 1px 3px rgba(0,0,0,0.2)',
-              transform: expanded ? 'scale(1)' : 'scale(0.33)',
-              opacity: expanded ? 1 : 0,
-              transition: 'transform 0.25s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.25s cubic-bezier(0.23, 1, 0.32, 1)',
+              width: expanded ? 24 : 10,
+              height: expanded ? 24 : 10,
+              backgroundColor: expanded ? 'rgba(255,255,255,0.35)' : 'white',
+              backdropFilter: expanded ? 'blur(3px)' : 'none',
+              WebkitBackdropFilter: expanded ? 'blur(3px)' : 'none',
+              boxShadow: expanded
+                ? 'inset 0 1px 1px rgba(255,255,255,0.15), 0 1px 3px rgba(0,0,0,0.2)'
+                : '0 0 1px 1px rgba(0,0,0,0.2)',
+              transition: 'width 0.25s cubic-bezier(0.23, 1, 0.32, 1), height 0.25s cubic-bezier(0.23, 1, 0.32, 1), background-color 0.25s cubic-bezier(0.23, 1, 0.32, 1), box-shadow 0.25s cubic-bezier(0.23, 1, 0.32, 1)',
             }}
           />
         </div>
@@ -142,11 +128,11 @@ export function ColorSlider({
           step={step}
           value={value}
           onChange={(e) => onChange?.(Number(e.target.value))}
-          onPointerMove={checkGripHover}
-          onPointerEnter={checkGripHover}
-          onPointerLeave={() => { setHovered(false); setDragging(false); }}
-          onPointerDown={() => { setDragging(true); onDragStart?.(); }}
-          onPointerUp={() => { setDragging(false); setHovered(true); onDragEnd?.(); }}
+          onMouseMove={checkGripHover}
+          onMouseEnter={checkGripHover}
+          onMouseLeave={() => { setHovered(false); setDragging(false); }}
+          onMouseDown={() => { setDragging(true); onDragStart?.(); }}
+          onMouseUp={() => { setDragging(false); setHovered(true); onDragEnd?.(); }}
           className="absolute inset-0 w-full z-10 opacity-0 cursor-pointer"
         />
       </div>

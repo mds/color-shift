@@ -33,7 +33,7 @@ export function ColorSliders({
 }: ColorSlidersProps) {
   return (
     <div className={`flex flex-col w-full overflow-visible ${className ?? ''}`}>
-      <div className="flex flex-col gap-3 px-2 w-full overflow-visible">
+      <div className="flex flex-col gap-3 px-4 w-full overflow-visible">
         {sliders.map((s, i) => (
           <ColorSlider
             key={i}

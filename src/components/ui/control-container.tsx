@@ -98,7 +98,7 @@ export function ControlContainer({
         className="grid overflow-visible transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
         style={{ gridTemplateRows: slidersExpanded ? '1fr' : '0fr' }}
       >
-        <div className="overflow-visible" style={{ overflowY: 'clip' }}>
+        <div className="overflow-hidden">
           <div
             className="flex flex-col gap-4 w-full pb-4 overflow-visible transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
             style={{
