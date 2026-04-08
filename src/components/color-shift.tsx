@@ -332,13 +332,15 @@ export function ColorShift() {
   // ── Navigation — triggers strip transition ──
 
   const navigateTo = useCallback((newIndex: number) => {
-    if (newIndex < 0 || newIndex >= photoBuffer.length) return;
-    if (newIndex === photoIndex) return;
-    setTransitionDirection(newIndex > photoIndex ? 'left' : 'right');
+    if (photoBuffer.length === 0) return;
+    // Wrap around at either end: -1 → last, length → 0
+    const wrapped = ((newIndex % photoBuffer.length) + photoBuffer.length) % photoBuffer.length;
+    if (wrapped === photoIndex) return;
+    setTransitionDirection(wrapped > photoIndex ? 'left' : 'right');
     prevIndexRef.current = photoIndex;
-    setPhotoIndex(newIndex);
-    maybeRefill(newIndex, photoBuffer);
-    preloadImages(photoBuffer.slice(newIndex + 1, newIndex + 3));
+    setPhotoIndex(wrapped);
+    maybeRefill(wrapped, photoBuffer);
+    preloadImages(photoBuffer.slice(wrapped + 1, wrapped + 3));
   }, [photoIndex, photoBuffer, maybeRefill, preloadImages]);
 
   // Inject photo

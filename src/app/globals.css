@@ -33,6 +33,15 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
+/* Mobile Safari chrome sampling:
+   iOS Safari 15+ tints its top and bottom UI bars by sampling the page
+   background at those edges. Black on html ensures the bottom tab bar
+   reads dark (matching the dock), while the top bar samples the color
+   panel's bgHex for a tinted address bar. Requires viewport-fit=cover. */
+html {
+    background: #000;
+}
+
 /* ── Button Press (squish → pop → settle) ────────────────────────── */
 
 button:not(.no-press) {

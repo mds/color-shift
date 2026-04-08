@@ -1,11 +1,11 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 import { getGoogleFontsUrl } from "@/lib/fonts";
 import { DevTools } from "@/components/dev-tools";
-import { AgentationWrapper } from "@/components/agentation-wrapper";
-import { DialKitWrapper } from "@/components/dialkit-wrapper";
+// import { AgentationWrapper } from "@/components/agentation-wrapper";
+// import { DialKitWrapper } from "@/components/dialkit-wrapper";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -56,6 +56,12 @@ export const metadata: Metadata = {
   description: "Two colors. Background and foreground. See the contrast. Feel the combination.",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -74,8 +80,8 @@ export default function RootLayout({
       <body>
         {children}
         <DevTools />
-        <AgentationWrapper />
-        <DialKitWrapper />
+        {/* <AgentationWrapper /> */}
+        {/* <DialKitWrapper /> */}
       </body>
     </html>
   );

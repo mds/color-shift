@@ -152,9 +152,6 @@ export function ControlContainer({
   return (
     <div
       className={`bg-black w-full shrink-0 overflow-visible ${className ?? ''}`}
-      style={{
-        paddingBottom: 'env(safe-area-inset-bottom)',
-      }}
     >
       {/* ──────────────── DESKTOP (sm+) — unchanged ──────────────── */}
       <div className="hidden sm:flex sm:flex-col sm:p-2 sm:w-full sm:overflow-visible">
@@ -180,8 +177,8 @@ export function ControlContainer({
               <ColorMode
                 mode={sliderMode}
                 onModeChange={onSliderModeChange}
-                showClose
-                onClose={onSlidersClose}
+                // showClose
+                // onClose={onSlidersClose}
                 className="w-full"
               />
               <ColorSliders
@@ -224,45 +221,35 @@ export function ControlContainer({
 
       {/* ──────────────── MOBILE (<sm) — new layout ──────────────── */}
       {/* Dock padding per Figma: 24 / 24 / 24 / 48 (+ safe-area inset) */}
-      <div className="flex sm:hidden flex-col w-full overflow-visible px-6 pt-6 pb-12">
-        {/* Row 1 — Photo nav: [← arrow] [photo file input] [→ arrow], justify-between */}
-        <div className="flex items-center justify-between">
-          <IconButton onClick={onLeftArrow}>
-            <LeftArrowIcon className="size-6 text-[#a39f9f]" />
-          </IconButton>
-
-          {/* Native file input — layout only, upload handler wired later */}
-          <label className="flex items-center justify-center px-1 py-0.5 rounded-lg cursor-pointer shrink-0 transition-colors duration-150 hover:bg-[#191919] outline-none focus-visible:ring-1 focus-visible:ring-white/30">
-            <input type="file" accept="image/*" className="sr-only" />
-            <svg
-              className="size-6 text-[#a39f9f]"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="3" y="6" width="18" height="14" rx="2" />
-              <circle cx="12" cy="13" r="3.5" />
-              <path d="M8 6l1.5-2h5L16 6" />
-            </svg>
-          </label>
-
-          <IconButton onClick={onRightArrow}>
-            <RightArrowIcon className="size-6 text-[#a39f9f]" />
-          </IconButton>
-        </div>
+      {/* Mobile font-size: all control text forced to 18px per Figma spec. */}
+      {/* [&_*]:text-[16px] has higher specificity than primitives' text-xs. */}
+      <div
+        className="flex sm:hidden flex-col gap-1 w-full overflow-visible px-6 pt-6 [&_*]:text-[16px]"
+        style={{
+          paddingBottom: 'calc(3rem + env(safe-area-inset-bottom))',
+        }}
+      >
+        {/* Row 1 — Photo nav: [← arrow] [→ arrow].
+            File picker moved onto the photo itself (strip-transition.tsx).
+            Visible in every state except export. */}
+        <YPanel open={controlsState !== 'export'}>
+          <div className="flex items-center justify-between">
+            <IconButton onClick={onLeftArrow}>
+              <LeftArrowIcon className="size-[30px] text-[#a39f9f]" />
+            </IconButton>
+            <IconButton onClick={onRightArrow}>
+              <RightArrowIcon className="size-[30px] text-[#a39f9f]" />
+            </IconButton>
+          </div>
+        </YPanel>
 
         {/* Slider panel (mobile) — only open when slidersExpanded AND state === 'default' */}
         <YPanel open={mobileSlidersOpen} className="flex flex-col gap-4 w-full pt-3">
           <ColorMode
             mode={sliderMode}
             onModeChange={onSliderModeChange}
-            showClose
-            onClose={onSlidersClose}
+            // showClose
+            // onClose={onSlidersClose}
             className="w-full"
           />
           <ColorSliders
@@ -274,57 +261,8 @@ export function ControlContainer({
           />
         </YPanel>
 
-        {/* State: default — swatches + score/export */}
-        <YPanel open={controlsState === 'default'} className="flex flex-col gap-3 pt-3">
-          {/* Swatches row: FG | reverse | BG, justify-between */}
-          <div className="flex items-center justify-between w-full">
-            <CSButton
-              label={fgHex.replace('#', '').toUpperCase()}
-              swatchColor={fgHex}
-              accentColor={fgHex}
-              state={fgState ?? 'default'}
-              animated
-              onClick={onFgClick}
-            />
-            <IconButton selected={swapSelected} onClick={onSwap}>
-              <SwapArrowsIcon
-                className={`size-6 ${swapSelected ? 'text-[#e5e0e0]' : 'text-[#a39f9f]'}`}
-              />
-            </IconButton>
-            <CSButton
-              label={bgHex.replace('#', '').toUpperCase()}
-              swatchColor={bgHex}
-              accentColor={bgHex}
-              state={bgState ?? 'default'}
-              animated
-              onClick={onBgClick}
-            />
-          </div>
-
-          {/* Score + Export row: justify-between */}
-          <div className="flex items-center justify-between w-full">
-            <Score
-              type={algorithm}
-              state="default"
-              rating={rating}
-              value={contrastValue}
-              onClick={onResultsToggle}
-            />
-            <button
-              type="button"
-              onClick={onExportToggle}
-              className="flex items-center justify-center p-2 rounded-lg shrink-0 transition-colors duration-150 hover:bg-[#191919] outline-none focus-visible:ring-1 focus-visible:ring-white/30"
-            >
-              <TubeText
-                text="EXPORT"
-                className="font-mono text-xs leading-none whitespace-nowrap"
-                style={{ color: '#a39f9f' }}
-              />
-            </button>
-          </div>
-        </YPanel>
-
-        {/* State: score — threshold stack + score pill + wcag toggle */}
+        {/* Score panel — threshold stack. Opens ABOVE the always-visible score/export row.
+            (The WCAG/APCA toggle replaces the EXPORT button in the bottom row when this panel is open.) */}
         <YPanel open={controlsState === 'score'} className="flex flex-col gap-3 pt-3">
           {/* Vertical threshold stack — full-width CSButtons */}
           <div className="flex flex-col gap-3 w-full">
@@ -339,53 +277,83 @@ export function ControlContainer({
               />
             ))}
           </div>
+        </YPanel>
 
-          {/* Score (active) + WCAG/APCA toggle row: justify-between */}
+        {/* Export panel — action stack. Opens ABOVE the always-visible score/export row. */}
+        <YPanel open={controlsState === 'export'} className="flex flex-col gap-3 items-start pt-3">
+          <CSButton label="COPY URL" animated onClick={onCopyUrl} />
+          <CSButton label="COPY PARAMETERS" animated onClick={() => {}} />
+          <CSButton label="DOWNLOAD .MD" animated onClick={onDownloadMd} />
+        </YPanel>
+
+        {/* Swatches row — Y-collapses when a panel is open (score or export). */}
+        <YPanel open={controlsState === 'default'} className="pt-3">
           <div className="flex items-center justify-between w-full">
-            <Score
-              type={algorithm}
-              state="selected"
-              rating={rating}
-              value={contrastValue}
-              onClick={onResultsToggle}
+            <CSButton
+              label={fgHex.replace('#', '').toUpperCase()}
+              swatchColor={fgHex}
+              accentColor={fgHex}
+              state={fgState ?? 'default'}
+              animated
+              onClick={onFgClick}
             />
+            <IconButton selected={swapSelected} onClick={onSwap}>
+              <SwapArrowsIcon
+                className={`size-[30px] ${swapSelected ? 'text-[#e5e0e0]' : 'text-[#a39f9f]'}`}
+              />
+            </IconButton>
+            <CSButton
+              label={bgHex.replace('#', '').toUpperCase()}
+              swatchColor={bgHex}
+              accentColor={bgHex}
+              state={bgState ?? 'default'}
+              animated
+              onClick={onBgClick}
+            />
+          </div>
+        </YPanel>
+
+        {/* Always-visible score + export row. Buttons stay put; tapping toggles panels above. */}
+        <div className="flex flex-col pt-3">
+          {/* Score + Export row: justify-between. Both get 'selected' styling when their panel is open. */}
+          <div className="flex items-center justify-between w-full">
+            {/* Score collapses (Y-axis) when export is open; same mechanic as
+                every other mobile panel so it lands back in exactly the same
+                position with no TubeText interference. */}
+            <YPanel open={controlsState !== 'export'}>
+              <Score
+                type={algorithm}
+                state={controlsState === 'score' ? 'selected' : 'default'}
+                rating={rating}
+                value={contrastValue}
+                onClick={onResultsToggle}
+              />
+            </YPanel>
+            {/* Right-side button: in score state, swaps to WCAG/APCA toggle via TubeText's text change animation. */}
             <button
               type="button"
-              onClick={onAlgorithmToggle}
-              className="flex items-center justify-center p-2 rounded-lg shrink-0 transition-colors duration-150 hover:bg-[#191919] outline-none focus-visible:ring-1 focus-visible:ring-white/30"
+              onClick={controlsState === 'score' ? onAlgorithmToggle : onExportToggle}
+              className={`flex items-center justify-center p-2 rounded-lg shrink-0 transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-white/30 ${
+                controlsState === 'export' ? 'bg-[#191919]' : 'hover:bg-[#191919]'
+              }`}
+              style={
+                controlsState === 'export'
+                  ? { boxShadow: 'inset 0 0 0 1px #332f2f' }
+                  : undefined
+              }
             >
               <TubeText
-                text={algorithm === 'wcag' ? 'WCAG' : 'APCA'}
+                text={
+                  controlsState === 'score'
+                    ? (algorithm === 'wcag' ? 'WCAG' : 'APCA')
+                    : 'EXPORT'
+                }
                 className="font-mono text-xs leading-none whitespace-nowrap"
-                style={{ color: '#a39f9f' }}
+                style={{ color: controlsState === 'export' ? '#e5e0e0' : '#a39f9f' }}
               />
             </button>
           </div>
-        </YPanel>
-
-        {/* State: export — action stack + EXPORT active pill (bottom-right) */}
-        <YPanel open={controlsState === 'export'} className="flex flex-col gap-3 items-end pt-3">
-          {/* Export action stack — items-start, hug-width */}
-          <div className="flex flex-col gap-3 items-start w-full">
-            <CSButton label="COPY URL" animated onClick={onCopyUrl} />
-            <CSButton label="COPY PARAMETERS" animated onClick={() => {}} />
-            <CSButton label="DOWNLOAD .MD" animated onClick={onDownloadMd} />
-          </div>
-
-          {/* EXPORT active pill — anchored bottom-right via items-end on parent */}
-          <button
-            type="button"
-            onClick={onExportToggle}
-            className="flex items-center justify-center p-2 rounded-lg shrink-0 transition-colors duration-150 bg-[#191919] outline-none focus-visible:ring-1 focus-visible:ring-white/30"
-            style={{ boxShadow: 'inset 0 0 0 1px #332f2f' }}
-          >
-            <TubeText
-              text="EXPORT"
-              className="font-mono text-xs leading-none whitespace-nowrap"
-              style={{ color: '#e5e0e0' }}
-            />
-          </button>
-        </YPanel>
+        </div>
       </div>
     </div>
   );

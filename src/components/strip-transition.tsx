@@ -26,15 +26,17 @@ interface StripTransitionProps {
   photo: PhotoData | null;
   bgHex: string;
   fgHex: string;
+  onPhotoFileSelected?: (file: File) => void;
 }
 
 export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
-  ({ photo, bgHex, fgHex }, ref) => {
+  ({ photo, bgHex, fgHex, onPhotoFileSelected }, ref) => {
 
     const colorRef = useRef<HTMLDivElement>(null);
     const textRef = useRef<HTMLSpanElement>(null);
     const circleRef = useRef<HTMLDivElement>(null);
     const photoContainerRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const prevPhotoId = useRef<string | null>(null);
     const [showText, setShowText] = useState(true);
     const isHoveringRef = useRef(false);
@@ -161,8 +163,24 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
           </div>
         </div>
 
-        {/* Photo panel */}
-        <div className="w-full h-1/2 sm:w-1/2 sm:h-full relative overflow-hidden">
+        {/* Photo panel — tap to open native file picker (photo library / camera on mobile) */}
+        <div
+          className="w-full h-1/2 sm:w-1/2 sm:h-full relative overflow-hidden cursor-pointer"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          {/* Hidden file input — iOS shows Photo Library / Take Photo / Choose File */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onPhotoFileSelected?.(file);
+              e.target.value = '';
+            }}
+          />
+
           {/* Transitioning image layer (scale/blur/etc. happens here) */}
           <div ref={photoContainerRef} className="absolute inset-0">
             {photo && (
@@ -175,7 +193,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
 
           {/* Photo credit — static, not affected by photo transition */}
           {photo && (
-            <div className="absolute bottom-3 left-4 right-3 z-10">
+            <div className="absolute bottom-3 left-4 right-3 z-10" onClick={(e) => e.stopPropagation()}>
               <div className="text-white/50 text-[10px] font-mono drop-shadow-sm">
                 <a href={photo.photographerUrl} target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-white/90">{photo.photographer}</a>
                 <span> / </span>
