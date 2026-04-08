@@ -23,7 +23,7 @@ export function ColorMode({
   className,
 }: ColorModeProps) {
   return (
-    <div className={`flex items-center justify-between h-7 ${className ?? ''}`}>
+    <div className={`flex items-center justify-between ${className ?? ''}`}>
       <div className="flex items-start gap-1">
         {MODES.map((m) => (
           <CSButton

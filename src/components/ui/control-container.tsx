@@ -12,6 +12,8 @@
 // No GSAP on mobile. No x-axis motion.
 
 import type { ReactNode } from 'react';
+import { useLayoutEffect, useRef } from 'react';
+import gsap from 'gsap';
 import { ColorMode } from './color-mode';
 import { ColorSliders } from './color-sliders';
 import { ControlsBar } from './controls-bar';
@@ -149,6 +151,37 @@ export function ControlContainer({
   // Mobile-only: sliders are mutually exclusive with score/export states.
   const mobileSlidersOpen = slidersExpanded && controlsState === 'default';
 
+  // Smoothly animate the threshold stack's height when toggling between
+  // WCAG (4 rows) and APCA (5 rows). useLayoutEffect captures the previous
+  // rendered height and GSAP tweens from it to the new measured height,
+  // then releases back to `auto` so future layout stays responsive.
+  const thresholdStackRef = useRef<HTMLDivElement>(null);
+  const prevThresholdHeight = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const el = thresholdStackRef.current;
+    if (!el) return;
+    const newHeight = el.offsetHeight;
+    if (
+      prevThresholdHeight.current !== null &&
+      prevThresholdHeight.current !== newHeight
+    ) {
+      gsap.fromTo(
+        el,
+        { height: prevThresholdHeight.current },
+        {
+          height: newHeight,
+          duration: 0.25,
+          ease: 'power2.out',
+          overwrite: true,
+          onComplete: () => {
+            el.style.height = 'auto';
+          },
+        },
+      );
+    }
+    prevThresholdHeight.current = newHeight;
+  }, [algorithm, thresholds]);
+
   return (
     <div
       className={`bg-black w-full shrink-0 overflow-visible ${className ?? ''}`}
@@ -224,27 +257,13 @@ export function ControlContainer({
       {/* Mobile font-size: all control text forced to 18px per Figma spec. */}
       {/* [&_*]:text-[16px] has higher specificity than primitives' text-xs. */}
       <div
-        className="flex sm:hidden flex-col gap-1 w-full overflow-visible px-6 pt-6 [&_*]:text-[16px]"
+        className="flex sm:hidden flex-col w-full overflow-visible px-6 pt-6 [&_*]:text-[16px]"
         style={{
           paddingBottom: 'calc(3rem + env(safe-area-inset-bottom))',
         }}
       >
-        {/* Row 1 — Photo nav: [← arrow] [→ arrow].
-            File picker moved onto the photo itself (strip-transition.tsx).
-            Visible in every state except export. */}
-        <YPanel open={controlsState !== 'export'}>
-          <div className="flex items-center justify-between">
-            <IconButton onClick={onLeftArrow}>
-              <LeftArrowIcon className="size-[30px] text-[#a39f9f]" />
-            </IconButton>
-            <IconButton onClick={onRightArrow}>
-              <RightArrowIcon className="size-[30px] text-[#a39f9f]" />
-            </IconButton>
-          </div>
-        </YPanel>
-
         {/* Slider panel (mobile) — only open when slidersExpanded AND state === 'default' */}
-        <YPanel open={mobileSlidersOpen} className="flex flex-col gap-4 w-full pt-3">
+        <YPanel open={mobileSlidersOpen} className="flex flex-col gap-4 w-full">
           <ColorMode
             mode={sliderMode}
             onModeChange={onSliderModeChange}
@@ -264,8 +283,10 @@ export function ControlContainer({
         {/* Score panel — threshold stack. Opens ABOVE the always-visible score/export row.
             (The WCAG/APCA toggle replaces the EXPORT button in the bottom row when this panel is open.) */}
         <YPanel open={controlsState === 'score'} className="flex flex-col gap-3 pt-3">
-          {/* Vertical threshold stack — full-width CSButtons */}
-          <div className="flex flex-col gap-3 w-full">
+          {/* Vertical threshold stack — full-width CSButtons. The outer ref'd
+              wrapper is what the useLayoutEffect above tweens between
+              WCAG (4 rows) and APCA (5 rows) heights. */}
+          <div ref={thresholdStackRef} className="flex flex-col gap-3 w-full overflow-hidden">
             {thresholds.map((t) => (
               <CSButton
                 key={t}
@@ -280,14 +301,19 @@ export function ControlContainer({
         </YPanel>
 
         {/* Export panel — action stack. Opens ABOVE the always-visible score/export row. */}
-        <YPanel open={controlsState === 'export'} className="flex flex-col gap-3 items-start pt-3">
-          <CSButton label="COPY URL" animated onClick={onCopyUrl} />
-          <CSButton label="COPY PARAMETERS" animated onClick={() => {}} />
-          <CSButton label="DOWNLOAD .MD" animated onClick={onDownloadMd} />
+        <YPanel open={controlsState === 'export'} className="flex flex-col gap-3 pt-3">
+          <CSButton label="COPY URL" animated onClick={onCopyUrl} className="w-full" />
+          <CSButton label="COPY PARAMETERS" animated onClick={() => {}} className="w-full" />
+          <CSButton label="DOWNLOAD .MD" animated onClick={onDownloadMd} className="w-full" />
         </YPanel>
 
-        {/* Swatches row — Y-collapses when a panel is open (score or export). */}
-        <YPanel open={controlsState === 'default'} className="pt-3">
+        {/* Swatches row — Y-collapses when a panel is open (score or export).
+            Adds pt-3 only when the color sliders are expanded above it so
+            there's breathing room; no top padding when collapsed. */}
+        <YPanel
+          open={controlsState === 'default'}
+          className={mobileSlidersOpen ? 'pt-4' : ''}
+        >
           <div className="flex items-center justify-between w-full">
             <CSButton
               label={fgHex.replace('#', '').toUpperCase()}
@@ -353,6 +379,17 @@ export function ControlContainer({
               />
             </button>
           </div>
+        </div>
+
+        {/* Photo nav — pinned to bottom of mobile dock, always visible.
+            File picker lives on the photo itself (strip-transition.tsx). */}
+        <div className="flex items-center justify-between pt-3">
+          <IconButton onClick={onLeftArrow}>
+            <LeftArrowIcon className="size-[30px] text-[#a39f9f]" />
+          </IconButton>
+          <IconButton onClick={onRightArrow}>
+            <RightArrowIcon className="size-[30px] text-[#a39f9f]" />
+          </IconButton>
         </div>
       </div>
     </div>

@@ -76,6 +76,10 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="stylesheet" href={getGoogleFontsUrl()} />
+        {/* Mobile Safari top chrome — color-shift.tsx removes this and
+            re-appends on every bgHex change, since Safari ignores
+            setAttribute updates on an existing theme-color meta. */}
+        <meta name="theme-color" content="#000000" />
       </head>
       <body>
         {children}

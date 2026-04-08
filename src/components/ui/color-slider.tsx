@@ -61,7 +61,9 @@ export function ColorSlider({
   }, [pct]);
 
   const innerStroke = `inset 0 0 0 1px rgba(255,255,255,${trackDark ? 0.1 : 0})`;
-  const layerClass = 'absolute inset-x-1 inset-y-0 my-auto h-2 rounded-[52px] transition-opacity duration-300 linear';
+  // Gradient crossfade matches the grip `left` transition below so
+  // a mode change moves the color and the grip in a single motion.
+  const layerClass = 'absolute inset-x-1 inset-y-0 my-auto h-2 rounded-[52px] transition-opacity duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]';
 
   return (
     <div className={`flex flex-col gap-1 w-full overflow-visible ${className ?? ''}`}>
@@ -101,7 +103,7 @@ export function ColorSlider({
             transform: 'translateX(-50%)',
             width: 24,
             height: 24,
-            transition: dragging ? 'none' : 'left 0.15s cubic-bezier(0.23, 1, 0.32, 1)',
+            transition: dragging ? 'none' : 'left 0.2s cubic-bezier(0.23, 1, 0.32, 1)',
           }}
         >
           <div

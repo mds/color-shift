@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState, forwardRef, useCallback } from 'react';
 import gsap from 'gsap';
 import type { PhotoData } from './control-strip';
+import { TubeText } from './ui/tube-text';
 
 // DialKit-tuned motion params stored on window by color-shift.tsx
 type PhotoStyle = 'fade' | 'zoom-in' | 'zoom-out' | 'blur' | 'pixelate' | 'slide' | 'scale-fade';
@@ -37,6 +38,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
     const circleRef = useRef<HTMLDivElement>(null);
     const photoContainerRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isDraggingOver, setIsDraggingOver] = useState(false);
     const prevPhotoId = useRef<string | null>(null);
     const [showText, setShowText] = useState(true);
     const isHoveringRef = useRef(false);
@@ -136,7 +138,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
         <div
           ref={colorRef}
           className="w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative cursor-pointer select-none z-10"
-          style={{ backgroundColor: bgHex }}
+          style={{ backgroundColor: bgHex, containerType: 'size' }}
           onMouseEnter={handleEnter}
           onMouseLeave={handleLeave}
           onClick={handleClick}
@@ -157,16 +159,42 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
             className="absolute"
             style={{ opacity: 0, transform: 'scale(0)' }}
           >
-            <svg viewBox="0 0 100 100" className="w-[20vh] h-[20vh]">
+            <svg viewBox="0 0 100 100" className="w-[50cqh] h-[50cqh] sm:w-[20vh] sm:h-[20vh]">
               <circle cx="50" cy="50" r="50" fill={fgHex} />
             </svg>
           </div>
         </div>
 
-        {/* Photo panel — tap to open native file picker (photo library / camera on mobile) */}
+        {/* Photo panel — tap to open native file picker (photo library / camera on mobile).
+            Also supports drag-and-drop of image files on desktop. */}
         <div
           className="w-full h-1/2 sm:w-1/2 sm:h-full relative overflow-hidden cursor-pointer"
           onClick={() => fileInputRef.current?.click()}
+          onDragEnter={(e) => {
+            if (e.dataTransfer.types.includes('Files')) {
+              e.preventDefault();
+              setIsDraggingOver(true);
+            }
+          }}
+          onDragOver={(e) => {
+            if (e.dataTransfer.types.includes('Files')) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'copy';
+            }
+          }}
+          onDragLeave={(e) => {
+            // Only clear if leaving the panel entirely (not crossing children)
+            if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+            setIsDraggingOver(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDraggingOver(false);
+            const file = Array.from(e.dataTransfer.files).find((f) =>
+              f.type.startsWith('image/')
+            );
+            if (file) onPhotoFileSelected?.(file);
+          }}
         >
           {/* Hidden file input — iOS shows Photo Library / Take Photo / Choose File */}
           <input
@@ -181,8 +209,24 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
             }}
           />
 
-          {/* Transitioning image layer (scale/blur/etc. happens here) */}
-          <div ref={photoContainerRef} className="absolute inset-0">
+          {/* Transitioning image layer (scale/blur/etc. happens here).
+              On drag-over: scales down to 0.75 and picks up a 1px dashed
+              border that shrinks with it. */}
+          <div
+            ref={photoContainerRef}
+            className="absolute inset-0"
+            style={{
+              transform: isDraggingOver ? 'scale(0.9)' : 'scale(1)',
+              transformOrigin: 'center center',
+              transition:
+                'transform 150ms cubic-bezier(0.33,1,0.68,1), outline-color 150ms linear',
+              outline: '1px dashed rgba(255,255,255,0.6)',
+              outlineOffset: '-1px',
+              outlineColor: isDraggingOver
+                ? 'rgba(255,255,255,0.6)'
+                : 'rgba(255,255,255,0)',
+            }}
+          >
             {photo && (
               <>
                 <img src={photo.tinyUrl} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
@@ -191,16 +235,40 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
             )}
           </div>
 
-          {/* Photo credit — static, not affected by photo transition */}
-          {photo && (
-            <div className="absolute bottom-3 left-4 right-3 z-10" onClick={(e) => e.stopPropagation()}>
-              <div className="text-white/50 text-[10px] font-mono drop-shadow-sm">
-                <a href={photo.photographerUrl} target="_blank" rel="noopener noreferrer" className="text-white/70 hover:text-white/90">{photo.photographer}</a>
-                <span> / </span>
-                <a href="https://unsplash.com" target="_blank" rel="noopener noreferrer" className="hover:text-white/70">Unsplash</a>
+          {/* Bottom-left text — three discrete states stacked in the same slot.
+              Each is its own persistent TubeText. Only the active state holds
+              its real string; the inactive ones hold '', so state transitions
+              trigger each TubeText's char rotate-out / rotate-in naturally. */}
+          {photo && (() => {
+            const isUpload = photo.id.startsWith('upload-');
+            const state: 'credit' | 'filename' | 'drag' = isDraggingOver
+              ? 'drag'
+              : isUpload
+                ? 'filename'
+                : 'credit';
+            const rowBase =
+              'text-white/70 text-[10px] font-mono drop-shadow-sm';
+            return (
+              <div
+                className="absolute bottom-3 left-4 right-3 z-10"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="relative">
+                  <div className={rowBase}>
+                    <TubeText
+                      text={state === 'credit' ? `Unsplash / ${photo.photographer}` : ''}
+                    />
+                  </div>
+                  <div className={`${rowBase} absolute inset-0`}>
+                    <TubeText text={state === 'filename' ? photo.alt : ''} />
+                  </div>
+                  <div className={`${rowBase} absolute inset-0`}>
+                    <TubeText text={state === 'drag' ? 'DRAG AND DROP TO ADD PHOTO' : ''} />
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       </div>
     );

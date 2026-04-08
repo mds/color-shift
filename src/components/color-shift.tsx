@@ -136,6 +136,20 @@ export function ColorShift() {
 
   useEffect(() => { setManualColors(null); }, [photoIndex]);
 
+  // Sync Mobile Safari top chrome to bgHex via <meta name="theme-color">.
+  // Safari ignores setAttribute updates on an existing theme-color meta,
+  // so we remove and re-create the element on each change. The bottom tab
+  // bar is translucent and blurs the dock — no meta needed there.
+  useEffect(() => {
+    document
+      .querySelectorAll('meta[name="theme-color"]')
+      .forEach((m) => m.remove());
+    const meta = document.createElement('meta');
+    meta.setAttribute('name', 'theme-color');
+    meta.setAttribute('content', bgHex);
+    document.head.appendChild(meta);
+  }, [bgHex]);
+
   // ── Refs ──
   const isDraggingRef = useRef(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -361,6 +375,31 @@ export function ColorShift() {
     setPhotoIndex(insertAt);
   }, [fetchPhotos, preloadThumbs, preloadImages, extractBatchColors, photoIndex]);
 
+  // Inject a user-uploaded photo (from file picker or camera capture)
+  const injectPhotoFromFile = useCallback((file: File) => {
+    const objectUrl = URL.createObjectURL(file);
+    const newPhoto: PhotoData = {
+      id: `upload-${Date.now()}-${file.name}`,
+      url: objectUrl,
+      thumbUrl: objectUrl,
+      tinyUrl: objectUrl,
+      color: '#000000',
+      photographer: 'You',
+      photographerUrl: '#',
+      photoUrl: '#',
+      alt: file.name,
+    };
+    preloadImages([newPhoto]);
+    extractBatchColors([newPhoto]);
+    const insertAt = photoIndex + 1;
+    setPhotoBuffer(prev => {
+      const next = [...prev];
+      next.splice(insertAt, 0, newPhoto);
+      return next;
+    });
+    setPhotoIndex(insertAt);
+  }, [preloadImages, extractBatchColors, photoIndex]);
+
   // ── Manual color manipulation ──
 
   const setManualBg = useCallback((newBg: string) => {
@@ -372,9 +411,13 @@ export function ColorShift() {
   }, [bgHex]);
 
   const swap = useCallback(() => {
-    setManualColors(null);
+    // Directly swap the currently-rendered colors as a manual override.
+    // This guarantees a visible flip even when both extracted colors
+    // are similarly toned (e.g., user-uploaded photos where polarity
+    // alone wouldn't trigger a swap in applyPolarity).
+    setManualColors({ bg: fgHex, fg: bgHex });
     setLighterAsBg(v => !v);
-  }, []);
+  }, [bgHex, fgHex]);
   const updateBgHsb = useCallback((hsb: HSB) => setManualBg(hsbToHex(hsb)), [setManualBg]);
   const updateFgHsb = useCallback((hsb: HSB) => setManualFg(hsbToHex(hsb)), [setManualFg]);
   const updateBgOklch = useCallback((oklch: OklchValues) => setManualBg(oklchToHex(oklch)), [setManualBg]);
@@ -433,14 +476,16 @@ export function ColorShift() {
     preloadedImages.current.clear();
   }, []);
 
-  // Animate slider percentages from current to target
-  const animateSlidersTo = useCallback((target: [number, number, number], duration = 0.3) => {
+  // Animate slider percentages from current to target.
+  // Duration + ease match the gradient crossfade in color-slider.tsx so
+  // the grip and the color gradient move as one unified motion.
+  const animateSlidersTo = useCallback((target: [number, number, number], duration = 0.2) => {
     if (sliderTweenRef.current) sliderTweenRef.current.kill();
     const cur = sliderPosRef.current;
     const proxy = { v0: cur[0], v1: cur[1], v2: cur[2] };
     sliderTweenRef.current = gsap.to(proxy, {
       v0: target[0], v1: target[1], v2: target[2],
-      duration, ease: 'power4.inOut',
+      duration, ease: 'power4.out',
       onUpdate: () => {
         const pos: [number, number, number] = [proxy.v0, proxy.v1, proxy.v2];
         sliderPosRef.current = pos;
@@ -553,6 +598,7 @@ export function ColorShift() {
           photo={photoData}
           bgHex={bgHex}
           fgHex={fgHex}
+          onPhotoFileSelected={injectPhotoFromFile}
         />
       </div>
 
