@@ -5,6 +5,7 @@ import "./globals.css";
 import { getGoogleFontsUrl } from "@/lib/fonts";
 import { DevTools } from "@/components/dev-tools";
 import { AgentationWrapper } from "@/components/agentation-wrapper";
+import { DialKitWrapper } from "@/components/dialkit-wrapper";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -74,6 +75,7 @@ export default function RootLayout({
         {children}
         <DevTools />
         <AgentationWrapper />
+        <DialKitWrapper />
       </body>
     </html>
   );

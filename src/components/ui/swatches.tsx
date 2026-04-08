@@ -10,6 +10,7 @@ interface SwatchesProps {
   fgHex: string;
   bgState?: 'default' | 'hover' | 'selected';
   fgState?: 'default' | 'hover' | 'selected';
+  swapSelected?: boolean;
   onBgClick?: () => void;
   onFgClick?: () => void;
   onSwap?: () => void;
@@ -21,6 +22,7 @@ export function Swatches({
   fgHex,
   bgState = 'default',
   fgState = 'default',
+  swapSelected = false,
   onBgClick,
   onFgClick,
   onSwap,
@@ -36,8 +38,8 @@ export function Swatches({
         animated
         onClick={onFgClick}
       />
-      <IconButton onClick={onSwap}>
-        <SwapArrowsIcon className="size-6 text-[#a39f9f]" />
+      <IconButton selected={swapSelected} onClick={onSwap}>
+        <SwapArrowsIcon className={`size-6 ${swapSelected ? 'text-[#e5e0e0]' : 'text-[#a39f9f]'}`} />
       </IconButton>
       <CSButton
         label={bgHex.replace('#', '').toUpperCase()}

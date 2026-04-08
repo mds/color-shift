@@ -46,6 +46,7 @@ interface ControlContainerProps {
   onBgClick?: () => void;
   onFgClick?: () => void;
   onSwap?: () => void;
+  swapSelected?: boolean;
   onResultsToggle?: () => void;
   onAlgorithmToggle?: () => void;
   onThresholdSelect?: (threshold: number) => void;
@@ -81,6 +82,7 @@ export function ControlContainer({
   onBgClick,
   onFgClick,
   onSwap,
+  swapSelected,
   onResultsToggle,
   onAlgorithmToggle,
   onThresholdSelect,
@@ -95,15 +97,19 @@ export function ControlContainer({
     <div className={`flex flex-col bg-black p-2 w-full overflow-visible ${className ?? ''}`}>
       {/* Slider panel — always mounted, animated with CSS grid rows + transform */}
       <div
-        className="grid overflow-visible transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
-        style={{ gridTemplateRows: slidersExpanded ? '1fr' : '0fr' }}
+        className="grid overflow-visible"
+        style={{
+          gridTemplateRows: slidersExpanded ? '1fr' : '0fr',
+          transition: 'grid-template-rows var(--cb-duration, 0.2s) var(--cb-ease, cubic-bezier(0.33,1,0.68,1)), opacity var(--cb-duration, 0.2s) var(--cb-ease, cubic-bezier(0.33,1,0.68,1))',
+        }}
       >
         <div className="overflow-hidden">
           <div
-            className="flex flex-col gap-4 w-full pb-4 overflow-visible transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]"
+            className="flex flex-col gap-4 w-full pb-4 overflow-visible"
             style={{
               opacity: slidersExpanded ? 1 : 0,
               transform: slidersExpanded ? 'translateY(0)' : 'translateY(16px)',
+              transition: 'transform var(--cb-duration, 0.2s) var(--cb-ease, cubic-bezier(0.33,1,0.68,1)), opacity var(--cb-duration, 0.2s) var(--cb-ease, cubic-bezier(0.33,1,0.68,1))',
             }}
           >
             <ColorMode
@@ -139,6 +145,7 @@ export function ControlContainer({
         onBgClick={onBgClick}
         onFgClick={onFgClick}
         onSwap={onSwap}
+        swapSelected={swapSelected}
         onResultsToggle={onResultsToggle}
         onAlgorithmToggle={onAlgorithmToggle}
         onThresholdSelect={onThresholdSelect}

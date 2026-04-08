@@ -35,7 +35,8 @@ export function CSButton({
   className,
 }: CSButtonProps) {
   const isSelected = state === 'selected';
-  const textColor = isSelected && accentTextColor ? accentTextColor : '#a39f9f';
+  const defaultTextColor = isSelected ? '#e5e0e0' : '#a39f9f';
+  const textColor = isSelected && accentTextColor ? accentTextColor : defaultTextColor;
 
   return (
     <button
@@ -43,13 +44,13 @@ export function CSButton({
       onClick={onClick}
       className={`
         flex items-center justify-center gap-2 p-2 rounded-lg shrink-0
-        transition-colors duration-150
+        transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-white/30
         ${isSelected ? 'bg-[#191919]' : ''}
         ${state === 'hover' ? 'bg-[#191919]' : ''}
         ${state === 'default' ? 'hover:bg-[#191919]' : ''}
         ${className ?? ''}
       `}
-      style={isSelected ? { boxShadow: 'inset 0 0 0 1px #2B2727' } : undefined}
+      style={isSelected ? { boxShadow: 'inset 0 0 0 1px #332f2f' } : undefined}
     >
       {swatchColor && <Swatch color={swatchColor} />}
       {animated ? (

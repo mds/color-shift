@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useDialKit } from 'dialkit';
 import { gsap } from '@/lib/gsap-config';
 import {
   hexToColorData,
@@ -71,6 +72,16 @@ function actualToHex(values: [number, number, number], mode: SliderMode): string
   return rgbToHex(Math.round(values[0]), Math.round(values[1]), Math.round(values[2]));
 }
 
+// Apply polarity preference: if lighterAsBg, put lighter color in bg slot
+function applyPolarity(pair: PhotoColors, lighterAsBg: boolean): PhotoColors {
+  const bgIsDark = isHexDark(pair.bg, 128);
+  const fgIsDark = isHexDark(pair.fg, 128);
+  // Only flip if the current arrangement doesn't match the preference
+  if (lighterAsBg && bgIsDark && !fgIsDark) return { bg: pair.fg, fg: pair.bg };
+  if (!lighterAsBg && !bgIsDark && fgIsDark) return { bg: pair.fg, fg: pair.bg };
+  return pair;
+}
+
 function isTrackDark(start: string, end: string): boolean {
   return isHexDark(start, 40) || isHexDark(end, 40);
 }
@@ -99,6 +110,8 @@ export function ColorShift() {
   // ── Color cache ──
   const [colorMap, setColorMap] = useState<Map<string, PhotoColors>>(new Map());
   const [manualColors, setManualColors] = useState<PhotoColors | null>(null);
+  // Polarity preference: false = darker goes to bg (default), true = lighter goes to bg
+  const [lighterAsBg, setLighterAsBg] = useState(false);
   const photoData = photoBuffer[photoIndex] ?? null;
 
   // ── Derive colors for current photo ──
@@ -111,9 +124,9 @@ export function ColorShift() {
   }, [colorMap]);
 
   const colors = useMemo((): PhotoColors => {
-    if (manualColors) return manualColors;
-    return getColorsForPhoto(photoData);
-  }, [photoData, manualColors, getColorsForPhoto]);
+    const base = manualColors ?? getColorsForPhoto(photoData);
+    return applyPolarity(base, lighterAsBg);
+  }, [photoData, manualColors, getColorsForPhoto, lighterAsBg]);
 
   const bgHex = colors.bg;
   const fgHex = colors.fg;
@@ -126,6 +139,74 @@ export function ColorShift() {
   // ── Refs ──
   const isDraggingRef = useRef(false);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  // ── DialKit: Aa ↔ circle transition tuning ──
+  const easeOptions = ['power1.out', 'power2.out', 'power3.out', 'power4.out', 'sine.out', 'expo.out', 'circ.out', 'back.out', 'elastic.out', 'bounce.out', 'linear'];
+
+  // GSAP ease name → CSS cubic-bezier() for transition/animation properties
+  const EASE_TO_CB: Record<string, string> = {
+    'power1.out': 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+    'power2.out': 'cubic-bezier(0.33, 1, 0.68, 1)',
+    'power3.out': 'cubic-bezier(0.16, 1, 0.3, 1)',
+    'power4.out': 'cubic-bezier(0.07, 1, 0.33, 1)',
+    'sine.out':   'cubic-bezier(0.39, 0.575, 0.565, 1)',
+    'expo.out':   'cubic-bezier(0.19, 1, 0.22, 1)',
+    'circ.out':   'cubic-bezier(0.075, 0.82, 0.165, 1)',
+    'back.out':   'cubic-bezier(0.34, 1.56, 0.64, 1)',
+    'linear':     'linear',
+    'elastic.out': 'cubic-bezier(0.5, 1.5, 0.5, 1)',
+    'bounce.out': 'cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+  };
+
+  const motionParams = useDialKit('Motion', {
+    'color hover': {
+      scale: [1.05, 1, 1.5, 0.01],
+      duration: [1, 0, 1, 0.01],
+      ease: { type: 'select' as const, options: easeOptions, default: 'power4.out' },
+      navPulseScale: [1.01, 1, 1.5, 0.01],
+      navPulseDuration: [0.4, 0, 1, 0.01],
+    },
+    'color click': {
+      duration: [0.3, 0, 1, 0.01],
+      ease: { type: 'select' as const, options: easeOptions, default: 'power4.out' },
+    },
+    'photo transition': {
+      style: {
+        type: 'select' as const,
+        options: ['fade', 'zoom-in', 'zoom-out', 'blur', 'pixelate', 'slide', 'scale-fade'],
+        default: 'fade',
+      },
+      startOpacity: [0, 0, 1, 0.01],
+      startScale: [1.05, 0.5, 1.5, 0.01],
+      duration: [1, 0, 2, 0.01],
+      ease: { type: 'select' as const, options: easeOptions, default: 'power4.out' },
+    },
+    'control bar': {
+      duration: [0.3, 0, 1, 0.01],
+      ease: { type: 'select' as const, options: easeOptions, default: 'power4.out' },
+    },
+  });
+
+  // Mirror DialKit values to a global object consumed by strip-transition
+  useEffect(() => {
+    const hover = motionParams['color hover'] as { scale: number; duration: number; ease: string; navPulseScale: number; navPulseDuration: number };
+    const click = motionParams['color click'] as { duration: number; ease: string };
+    const photo = motionParams['photo transition'] as { style: string; startOpacity: number; startScale: number; duration: number; ease: string };
+    const controlBar = motionParams['control bar'] as { duration: number; ease: string };
+
+    (window as unknown as { __motion?: unknown }).__motion = {
+      hover: { scale: hover.scale, duration: hover.duration, ease: hover.ease, navPulseScale: hover.navPulseScale, navPulseDuration: hover.navPulseDuration },
+      click: { duration: click.duration, ease: click.ease },
+      photo: { style: photo.style, startOpacity: photo.startOpacity, startScale: photo.startScale, duration: photo.duration, ease: photo.ease },
+      controlBar: { duration: controlBar.duration, ease: controlBar.ease },
+    };
+
+    // CSS vars for the control bar — used by Tailwind transition styles
+    const root = document.documentElement;
+    root.style.setProperty('--cb-duration', `${controlBar.duration}s`);
+    root.style.setProperty('--cb-ease', EASE_TO_CB[controlBar.ease] ?? 'cubic-bezier(0.33, 1, 0.68, 1)');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [motionParams]);
   const stripRef = useRef<HTMLDivElement>(null);
   const specimenInputRef = useRef<HTMLInputElement>(null);
   const preloadedImages = useRef<Set<HTMLImageElement>>(new Set());
@@ -288,7 +369,10 @@ export function ColorShift() {
     setManualColors(prev => ({ bg: prev?.bg ?? bgHex, fg: newFg }));
   }, [bgHex]);
 
-  const swap = useCallback(() => { setManualColors({ bg: fgHex, fg: bgHex }); }, [bgHex, fgHex]);
+  const swap = useCallback(() => {
+    setManualColors(null);
+    setLighterAsBg(v => !v);
+  }, []);
   const updateBgHsb = useCallback((hsb: HSB) => setManualBg(hsbToHex(hsb)), [setManualBg]);
   const updateFgHsb = useCallback((hsb: HSB) => setManualFg(hsbToHex(hsb)), [setManualFg]);
   const updateBgOklch = useCallback((oklch: OklchValues) => setManualBg(oklchToHex(oklch)), [setManualBg]);
@@ -518,6 +602,7 @@ export function ColorShift() {
           swap();
           if (slidersExpanded) setSliderTarget(t => t === 'bg' ? 'fg' : 'bg');
         }}
+        swapSelected={lighterAsBg}
         onResultsToggle={() => setControlsState(s => s === 'score' ? 'default' : 'score')}
         onAlgorithmToggle={toggleContrastAlgorithm}
         onThresholdSelect={bumpTo}

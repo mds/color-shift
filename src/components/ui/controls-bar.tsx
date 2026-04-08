@@ -29,8 +29,12 @@ import { Arrows, type ArrowsHandle } from './arrows';
 type ControlsState = 'default' | 'score' | 'export';
 
 
-const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)';  // ease-out-quint
-const DUR = 0.2;
+// Read DialKit-tuned control bar motion from window.__motion
+function getControlBarMotion(): { duration: number; ease: string } {
+  if (typeof window === 'undefined') return { duration: 0.2, ease: 'power2.out' };
+  const m = (window as unknown as { __motion?: { controlBar?: { duration: number; ease: string } } }).__motion;
+  return m?.controlBar ?? { duration: 0.2, ease: 'power2.out' };
+}
 
 interface ControlsBarProps {
   state: ControlsState;
@@ -46,6 +50,7 @@ interface ControlsBarProps {
   onBgClick?: () => void;
   onFgClick?: () => void;
   onSwap?: () => void;
+  swapSelected?: boolean;
   onResultsToggle?: () => void;
   onAlgorithmToggle?: () => void;
   onThresholdSelect?: (threshold: number) => void;
@@ -71,6 +76,7 @@ export function ControlsBar({
   onBgClick,
   onFgClick,
   onSwap,
+  swapSelected = false,
   onResultsToggle,
   onAlgorithmToggle,
   onThresholdSelect,
@@ -136,7 +142,9 @@ export function ControlsBar({
       applyRestingState(state); // ensure final resting state is clean
     };
 
-    const d = { duration: DUR, ease: EASE_OUT };
+    const cb = getControlBarMotion();
+    const DUR = cb.duration;
+    const d = { duration: DUR, ease: cb.ease };
 
     // ── default → export ──
     if (prev === 'default' && state === 'export') {
@@ -202,6 +210,7 @@ export function ControlsBar({
           fgHex={fgHex}
           bgState={bgState}
           fgState={fgState}
+          swapSelected={swapSelected}
           onBgClick={onBgClick}
           onFgClick={onFgClick}
           onSwap={onSwap}
@@ -225,7 +234,7 @@ export function ControlsBar({
           style={{
             opacity: state === 'export' ? 0 : 1,
             pointerEvents: state === 'export' ? 'none' : 'auto',
-            transition: `opacity ${DUR}s ${EASE_OUT}`,
+            transition: 'opacity var(--cb-duration, 0.2s) var(--cb-ease, cubic-bezier(0.33,1,0.68,1))',
           }}
           className="mr-1"
         >
@@ -240,7 +249,7 @@ export function ControlsBar({
               opacity: state === 'export' ? 1 : 0,
               pointerEvents: state === 'export' ? 'auto' : 'none',
               position: state === 'export' ? 'relative' : 'absolute',
-              transition: `opacity ${DUR}s ${EASE_OUT}`,
+              transition: 'opacity var(--cb-duration, 0.2s) var(--cb-ease, cubic-bezier(0.33,1,0.68,1))',
             }}
           >
             <CSButton label="COPY URL" onClick={onCopyUrl} />
@@ -251,15 +260,15 @@ export function ControlsBar({
             onClick={onExportToggle}
             className={`
               flex items-center justify-center p-2 rounded-lg shrink-0
-              transition-colors duration-150
+              transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-white/30
               ${state === 'export' ? 'bg-[#191919]' : 'hover:bg-[#191919]'}
             `}
-            style={state === 'export' ? { boxShadow: 'inset 0 0 0 1px #2B2727' } : undefined}
+            style={state === 'export' ? { boxShadow: 'inset 0 0 0 1px #332f2f' } : undefined}
           >
             <TubeText
               text={state === 'export' ? 'CLOSE' : 'EXPORT'}
               className="font-mono text-xs leading-none whitespace-nowrap"
-              style={{ color: '#a39f9f' }}
+              style={{ color: state === 'export' ? '#e5e0e0' : '#a39f9f' }}
             />
           </button>
         </div>
@@ -295,7 +304,7 @@ export function ControlsBar({
           ref={algorithmRef}
           type="button"
           onClick={onAlgorithmToggle}
-          className="no-press flex items-center justify-center p-2 rounded-lg shrink-0 transition-colors duration-150 hover:bg-[#191919]"
+          className="no-press flex items-center justify-center p-2 rounded-lg shrink-0 transition-colors duration-150 hover:bg-[#191919] outline-none focus-visible:ring-1 focus-visible:ring-white/30"
         >
           <TubeText
             text={algorithm === 'wcag' ? 'WCAG' : 'APCA'}
@@ -310,7 +319,7 @@ export function ControlsBar({
             style={{
               opacity: state === 'export' ? 0 : 1,
               pointerEvents: state === 'export' ? 'none' : 'auto',
-              transition: `opacity ${DUR}s ${EASE_OUT}`,
+              transition: 'opacity var(--cb-duration, 0.2s) var(--cb-ease, cubic-bezier(0.33,1,0.68,1))',
             }}
             className="flex-1 mr-1"
           >

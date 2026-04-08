@@ -4,26 +4,22 @@ import { useRef, useEffect, useState, forwardRef, useCallback } from 'react';
 import gsap from 'gsap';
 import type { PhotoData } from './control-strip';
 
-// All motion values exposed as CSS custom properties for DialKit
-// --color-duration: background color ease duration
-// --photo-duration: photo crossfade duration
-// --photo-opacity: photo crossfade start opacity
-// --squish-scale: mousedown press scale
-// --squish-duration: mousedown press duration
-// --pop-scale: release overshoot scale
-// --pop-duration: release overshoot duration
-// --exit-duration: element exit duration
-// --enter-duration: element enter duration
-// --enter-overshoot: back.out overshoot amount
+// DialKit-tuned motion params stored on window by color-shift.tsx
+type PhotoStyle = 'fade' | 'zoom-in' | 'zoom-out' | 'blur' | 'pixelate' | 'slide' | 'scale-fade';
+type MotionParams = {
+  hover: { scale: number; duration: number; ease: string; navPulseScale: number; navPulseDuration: number };
+  click: { duration: number; ease: string };
+  photo: { style: PhotoStyle; startOpacity: number; startScale: number; duration: number; ease: string };
+};
 
-function getMotionValue(name: string, fallback: number): number {
-  // Read directly from inline style first (set by DialKit), then computed style, then fallback
+function getMotionParams(): MotionParams {
+  const fallback: MotionParams = {
+    hover: { scale: 1.05, duration: 1, ease: 'power4.out', navPulseScale: 1.01, navPulseDuration: 0.4 },
+    click: { duration: 0.3, ease: 'power4.out' },
+    photo: { style: 'fade', startOpacity: 0, startScale: 1.05, duration: 1, ease: 'power4.out' },
+  };
   if (typeof window === 'undefined') return fallback;
-  const inline = document.documentElement.style.getPropertyValue(name).trim();
-  if (inline) return parseFloat(inline) || fallback;
-  const computed = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  if (computed) return parseFloat(computed) || fallback;
-  return fallback;
+  return (window as unknown as { __motion?: MotionParams }).__motion ?? fallback;
 }
 
 interface StripTransitionProps {
@@ -41,71 +37,93 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
     const photoContainerRef = useRef<HTMLDivElement>(null);
     const prevPhotoId = useRef<string | null>(null);
     const [showText, setShowText] = useState(true);
+    const isHoveringRef = useRef(false);
 
     // Ease background color + text/fill colors
     useEffect(() => {
-      const dur = getMotionValue('--color-duration', 0.4);
       if (colorRef.current) {
-        gsap.to(colorRef.current, { backgroundColor: bgHex, duration: dur, ease: 'power2.out', overwrite: true });
+        gsap.to(colorRef.current, { backgroundColor: bgHex, duration: 0.4, ease: 'power2.out', overwrite: true });
       }
       if (textRef.current) {
-        gsap.to(textRef.current, { color: fgHex, duration: dur, ease: 'power2.out', overwrite: 'auto' });
+        gsap.to(textRef.current, { color: fgHex, duration: 0.4, ease: 'power2.out', overwrite: 'auto' });
       }
     }, [bgHex, fgHex]);
 
-    // Crossfade photo
+    // Photo transition — multiple styles selectable via DialKit
     useEffect(() => {
       if (!photo) return;
       if (photo.id === prevPhotoId.current) return;
+      const isFirstLoad = prevPhotoId.current === null;
       prevPhotoId.current = photo.id;
-      if (photoContainerRef.current) {
-        const dur = getMotionValue('--photo-duration', 0.6);
-        const startOpacity = getMotionValue('--photo-opacity', 0.3);
-        gsap.fromTo(photoContainerRef.current,
-          { opacity: startOpacity },
-          { opacity: 1, duration: dur, ease: 'power2.out', overwrite: true }
-        );
-      }
-    }, [photo]);
+      const el = photoContainerRef.current;
+      if (!el) return;
 
-    const handleDown = useCallback(() => {
-      const active = showText ? textRef.current : circleRef.current;
-      if (active) {
-        const scale = getMotionValue('--squish-scale', 0.85);
-        const dur = getMotionValue('--squish-duration', 0.15);
-        gsap.to(active, { scale, duration: dur, ease: 'power2.out' });
+      const { photo: p, hover } = getMotionParams();
+      const t = { duration: p.duration, ease: p.ease, overwrite: true as const };
+
+      switch (p.style) {
+        case 'fade':
+        case 'zoom-in':
+        case 'zoom-out':
+        case 'scale-fade':
+          gsap.fromTo(el, { opacity: p.startOpacity, scale: p.startScale, filter: 'none', x: 0 }, { opacity: 1, scale: 1, ...t });
+          break;
+        case 'blur':
+          gsap.fromTo(el, { opacity: p.startOpacity, scale: p.startScale, filter: 'blur(20px)', x: 0 }, { opacity: 1, scale: 1, filter: 'blur(0px)', ...t });
+          break;
+        case 'pixelate':
+          gsap.fromTo(el, { opacity: p.startOpacity, scale: p.startScale, filter: 'contrast(1.5) blur(8px) saturate(1.3)', x: 0 }, { opacity: 1, scale: 1, filter: 'contrast(1) blur(0px) saturate(1)', ...t });
+          break;
+        case 'slide':
+          gsap.fromTo(el, { opacity: p.startOpacity, scale: p.startScale, filter: 'none', x: '30%' }, { opacity: 1, scale: 1, x: '0%', ...t });
+          break;
       }
+
+      // Simulate a hover pulse on the color panel's active element
+      // Skip on first load, and skip entirely if the color panel is already hovered
+      if (!isFirstLoad && !isHoveringRef.current) {
+        const active = showText ? textRef.current : circleRef.current;
+        if (active) {
+          const pulseHalf = hover.navPulseDuration / 2;
+          gsap.timeline()
+            .to(active, { scale: hover.navPulseScale, duration: pulseHalf, ease: hover.ease, overwrite: true })
+            .to(active, { scale: 1, duration: pulseHalf, ease: hover.ease });
+        }
+      }
+    }, [photo, showText]);
+
+    const handleEnter = useCallback(() => {
+      isHoveringRef.current = true;
+      const active = showText ? textRef.current : circleRef.current;
+      if (!active) return;
+      const { hover } = getMotionParams();
+      gsap.to(active, { scale: hover.scale, duration: hover.duration, ease: hover.ease, overwrite: true });
     }, [showText]);
 
-    const timelineRef = useRef<gsap.core.Timeline | null>(null);
+    const handleLeave = useCallback(() => {
+      isHoveringRef.current = false;
+      const active = showText ? textRef.current : circleRef.current;
+      if (!active) return;
+      const { hover } = getMotionParams();
+      gsap.to(active, { scale: 1, duration: hover.duration, ease: hover.ease, overwrite: true });
+    }, [showText]);
 
-    // Kill timeline on unmount
-    useEffect(() => () => { timelineRef.current?.kill(); }, []);
-
-    const handleUp = useCallback(() => {
+    const handleClick = useCallback(() => {
       const text = textRef.current;
       const circle = circleRef.current;
       if (!text || !circle) return;
 
       const active = showText ? text : circle;
       const incoming = showText ? circle : text;
+      const { hover, click } = getMotionParams();
+      // If the mouse is still over the panel, land in the hovered state
+      const incomingScale = isHoveringRef.current ? hover.scale : 1;
 
-      const popScale = getMotionValue('--pop-scale', 1.05);
-      const popDur = getMotionValue('--pop-duration', 0.1);
-      const exitDur = getMotionValue('--exit-duration', 0.25);
-      const enterDur = getMotionValue('--enter-duration', 0.35);
-      const overshoot = getMotionValue('--enter-overshoot', 1.4);
-
-      timelineRef.current?.kill();
-      const tl = gsap.timeline();
-      timelineRef.current = tl;
-      tl.to(active, { scale: popScale, duration: popDur, ease: 'power2.out' })
-        .to(active, { scale: 0, opacity: 0, duration: exitDur, ease: 'power2.in' })
-        .fromTo(incoming,
-          { scale: 0, opacity: 0 },
-          { scale: 1, opacity: 1, duration: enterDur, ease: `back.out(${overshoot})` },
-          '-=0.1'
-        );
+      gsap.to(active, { scale: 0, opacity: 0, duration: click.duration, ease: click.ease, overwrite: true });
+      gsap.fromTo(incoming,
+        { scale: 0, opacity: 0 },
+        { scale: incomingScale, opacity: 1, duration: click.duration, ease: click.ease, overwrite: true }
+      );
 
       setShowText(!showText);
     }, [showText]);
@@ -115,12 +133,11 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
         {/* Color panel */}
         <div
           ref={colorRef}
-          className="w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative cursor-pointer select-none"
+          className="w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative cursor-pointer select-none z-10"
           style={{ backgroundColor: bgHex }}
-          onMouseDown={handleDown}
-          onMouseUp={handleUp}
-          onTouchStart={handleDown}
-          onTouchEnd={handleUp}
+          onMouseEnter={handleEnter}
+          onMouseLeave={handleLeave}
+          onClick={handleClick}
         >
           <span
             ref={textRef}

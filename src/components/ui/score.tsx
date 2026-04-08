@@ -26,30 +26,32 @@ export function Score({
   onClick,
   className,
 }: ScoreProps) {
+  const isSelected = state === 'selected';
+  const textColor = isSelected ? '#e5e0e0' : '#a39f9f';
   return (
     <button
       type="button"
       onClick={onClick}
       className={`
         flex items-center justify-center p-2 rounded-lg shrink-0
-        transition-colors duration-150
+        transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-white/30
         ${state === 'selected' ? 'bg-[#191919]' : ''}
         ${state === 'hovered' ? 'bg-[#191919]' : ''}
         ${state === 'default' ? 'hover:bg-[#191919]' : ''}
         ${className ?? ''}
       `}
-      style={state === 'selected' ? { boxShadow: 'inset 0 0 0 1px #2B2727' } : undefined}
+      style={isSelected ? { boxShadow: 'inset 0 0 0 1px #332f2f' } : undefined}
     >
       <div className="flex items-center justify-center gap-2.5">
         <TubeText
           text={rating}
           className="font-mono text-xs leading-none whitespace-nowrap text-right"
-          style={{ color: '#a39f9f' }}
+          style={{ color: textColor }}
         />
         <TubeText
           text={value}
           className="font-mono text-xs leading-none whitespace-nowrap text-right"
-          style={{ color: '#a39f9f', fontVariantNumeric: 'tabular-nums' }}
+          style={{ color: textColor, fontVariantNumeric: 'tabular-nums' }}
         />
       </div>
     </button>

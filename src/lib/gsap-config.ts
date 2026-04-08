@@ -7,8 +7,9 @@ import { MorphSVGPlugin } from 'gsap/MorphSVGPlugin';
 import { Draggable } from 'gsap/Draggable';
 import { InertiaPlugin } from 'gsap/InertiaPlugin';
 import { SplitText } from 'gsap/SplitText';
+import { CustomEase } from 'gsap/CustomEase';
 
-gsap.registerPlugin(Flip, MorphSVGPlugin, Draggable, InertiaPlugin, SplitText, useGSAP);
+gsap.registerPlugin(Flip, MorphSVGPlugin, Draggable, InertiaPlugin, SplitText, CustomEase, useGSAP);
 
 export { Draggable };
 gsap.defaults({ ease: 'power2.out', duration: 0.4 });
