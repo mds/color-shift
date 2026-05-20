@@ -32,6 +32,12 @@ import { ControlContainer } from './ui/control-container';
 
 interface PhotoColors { bg: string; fg: string; }
 
+const APP_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || '/color-shift';
+
+function appPath(path: string): string {
+  return `${APP_BASE_PATH}${path}`;
+}
+
 // ── Pure color-space converters (module scope, no closures) ──
 
 type ColorData = ReturnType<typeof hexToColorData>;
@@ -264,14 +270,14 @@ export function ColorShift() {
   // ── Photo fetching ──
 
   const fetchPhotos = useCallback(async (count: number): Promise<PhotoData[]> => {
-    const res = await fetch(`/api/photos?count=${count}`);
+    const res = await fetch(appPath(`/api/photos?count=${count}`));
     const data = await res.json();
     if (!res.ok || data.error) { console.warn('Photo API:', data.error); return []; }
     return data as PhotoData[];
   }, []);
 
   const fetchPhotoById = useCallback(async (id: string): Promise<PhotoData | null> => {
-    const res = await fetch(`/api/photos?id=${encodeURIComponent(id)}`);
+    const res = await fetch(appPath(`/api/photos?id=${encodeURIComponent(id)}`));
     const data = await res.json();
     if (!res.ok || data.error) { console.warn('Photo API:', data.error); return null; }
     return data as PhotoData;

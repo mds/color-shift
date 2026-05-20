@@ -112,6 +112,14 @@ Files in `src/components/ui/` are treated as stable primitives. When doing layou
 - `DOWNLOAD .MD` writes the same markdown export as `generateExportMarkdown`, including contrast data, share URL, and photo credit.
 - On initial load, `color-shift.tsx` reads `photo`, `bg`, `fg`, and `algo` from `window.location.search`; direct photo links call `/api/photos?id=...`, then fill the rest of the buffer with random photos.
 
+## Labs Path Deployment
+
+The production app is path-aware for `labs.shiftnudge.com/color-shift`.
+
+- `next.config.ts` sets `basePath` from `NEXT_PUBLIC_BASE_PATH`, defaulting to `/color-shift`.
+- Client API calls go through the same base path so `/color-shift/api/photos` reaches this app when Shift Nudge proxies the route.
+- If the public labs path ever changes, update both `NEXT_PUBLIC_BASE_PATH` and the matching Shift Nudge rewrite target.
+
 ## Commands
 
 ```bash
