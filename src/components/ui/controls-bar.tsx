@@ -57,6 +57,7 @@ interface ControlsBarProps {
   onLeftArrow?: () => void;
   onRightArrow?: () => void;
   onExportToggle?: () => void;
+  exportFeedback?: 'url' | 'params' | 'markdown' | null;
   onCopyUrl?: () => void;
   onCopyParams?: () => void;
   onDownloadMd?: () => void;
@@ -84,6 +85,7 @@ export function ControlsBar({
   onLeftArrow,
   onRightArrow,
   onExportToggle,
+  exportFeedback,
   onCopyUrl,
   onCopyParams,
   onDownloadMd,
@@ -98,6 +100,9 @@ export function ControlsBar({
   const algorithmRef = useRef<HTMLButtonElement>(null);
   const arrowsRef = useRef<ArrowsHandle>(null);
   const exportOptionsRef = useRef<HTMLDivElement>(null);
+  const copyUrlLabel = exportFeedback === 'url' ? 'COPIED URL' : 'COPY URL';
+  const copyParamsLabel = exportFeedback === 'params' ? 'COPIED PARAMS' : 'COPY PARAMETERS';
+  const downloadMdLabel = exportFeedback === 'markdown' ? 'DOWNLOADED .MD' : 'DOWNLOAD .MD';
 
   // Resting styles for each state — the ground truth GSAP enforces
   // Helper: get both arrow button elements
@@ -254,9 +259,9 @@ export function ControlsBar({
               transition: 'opacity var(--cb-duration, 0.2s) var(--cb-ease, cubic-bezier(0.33,1,0.68,1))',
             }}
           >
-            <CSButton label="COPY URL" onClick={onCopyUrl} />
-            <CSButton label="COPY PARAMETERS" onClick={onCopyParams} />
-            <CSButton label="DOWNLOAD .MD" onClick={onDownloadMd} />
+            <CSButton label={copyUrlLabel} animated onClick={onCopyUrl} />
+            <CSButton label={copyParamsLabel} animated onClick={onCopyParams} />
+            <CSButton label={downloadMdLabel} animated onClick={onDownloadMd} />
           </div>
           <button
             type="button"
@@ -335,9 +340,9 @@ export function ControlsBar({
               ref={exportOptionsRef}
               className="flex items-center gap-1"
             >
-              <CSButton label="COPY URL" onClick={onCopyUrl} />
-              <CSButton label="COPY PARAMETERS" onClick={onCopyParams} />
-              <CSButton label="DOWNLOAD .MD" onClick={onDownloadMd} />
+              <CSButton label={copyUrlLabel} animated onClick={onCopyUrl} />
+              <CSButton label={copyParamsLabel} animated onClick={onCopyParams} />
+              <CSButton label={downloadMdLabel} animated onClick={onDownloadMd} />
             </div>
 
             {/* EXPORT — always visible, always rightmost */}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState, forwardRef, useCallback } from 'react';
+import { useRef, useEffect, useState, forwardRef, useCallback, type PointerEvent, type MouseEvent } from 'react';
 import gsap from 'gsap';
 import type { PhotoData } from './control-strip';
 import { TubeText } from './ui/tube-text';
@@ -28,20 +28,25 @@ interface StripTransitionProps {
   bgHex: string;
   fgHex: string;
   onPhotoFileSelected?: (file: File) => void;
+  onSpecimenClick?: () => void;
+  onSwipeLeft?: () => void;
+  onSwipeRight?: () => void;
 }
 
 export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
-  ({ photo, bgHex, fgHex, onPhotoFileSelected }, ref) => {
+  ({ photo, bgHex, fgHex, onPhotoFileSelected, onSpecimenClick, onSwipeLeft, onSwipeRight }, ref) => {
 
     const colorRef = useRef<HTMLDivElement>(null);
-    const textRef = useRef<HTMLSpanElement>(null);
+    const textRef = useRef<HTMLButtonElement>(null);
     const circleRef = useRef<HTMLDivElement>(null);
     const photoContainerRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDraggingOver, setIsDraggingOver] = useState(false);
     const prevPhotoId = useRef<string | null>(null);
-    const [showText, setShowText] = useState(true);
+    const [showText] = useState(true);
     const isHoveringRef = useRef(false);
+    const swipeStartRef = useRef<{ x: number; y: number; pointerId: number; didSwipe: boolean } | null>(null);
+    const suppressClickRef = useRef(false);
 
     // Ease background color + text/fill colors
     useEffect(() => {
@@ -112,47 +117,98 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       gsap.to(active, { scale: 1, duration: hover.duration, ease: hover.ease, overwrite: true });
     }, [showText]);
 
-    const handleClick = useCallback(() => {
-      const text = textRef.current;
-      const circle = circleRef.current;
-      if (!text || !circle) return;
+    const handleSpecimenClick = useCallback(() => {
+      const active = showText ? textRef.current : circleRef.current;
+      if (!active) return;
 
-      const active = showText ? text : circle;
-      const incoming = showText ? circle : text;
       const { hover, click } = getMotionParams();
-      // If the mouse is still over the panel, land in the hovered state
-      const incomingScale = isHoveringRef.current ? hover.scale : 1;
+      const targetScale = isHoveringRef.current ? hover.scale : 1;
+      gsap.timeline()
+        .to(active, { scale: targetScale * 0.94, duration: click.duration / 2, ease: click.ease, overwrite: true })
+        .to(active, { scale: targetScale, duration: click.duration / 2, ease: click.ease });
 
-      gsap.to(active, { scale: 0, opacity: 0, duration: click.duration, ease: click.ease, overwrite: true });
-      gsap.fromTo(incoming,
-        { scale: 0, opacity: 0 },
-        { scale: incomingScale, opacity: 1, duration: click.duration, ease: click.ease, overwrite: true }
-      );
+      onSpecimenClick?.();
+    }, [onSpecimenClick, showText]);
 
-      setShowText(!showText);
-    }, [showText]);
+    const handlePointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
+      if (event.pointerType !== 'touch' || !event.isPrimary) return;
+      swipeStartRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+        pointerId: event.pointerId,
+        didSwipe: false,
+      };
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    }, []);
+
+    const handlePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
+      const start = swipeStartRef.current;
+      if (!start || start.pointerId !== event.pointerId) return;
+      const dx = event.clientX - start.x;
+      const dy = event.clientY - start.y;
+      if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+        start.didSwipe = true;
+        event.preventDefault();
+      }
+    }, []);
+
+    const handlePointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
+      const start = swipeStartRef.current;
+      if (!start || start.pointerId !== event.pointerId) return;
+      const dx = event.clientX - start.x;
+      const dy = event.clientY - start.y;
+      swipeStartRef.current = null;
+
+      if (!start.didSwipe || Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+
+      suppressClickRef.current = true;
+      if (dx < 0) onSwipeLeft?.();
+      else onSwipeRight?.();
+    }, [onSwipeLeft, onSwipeRight]);
+
+    const handlePointerCancel = useCallback(() => {
+      swipeStartRef.current = null;
+    }, []);
+
+    const suppressClickAfterSwipe = useCallback((event: MouseEvent<HTMLDivElement>) => {
+      if (!suppressClickRef.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      suppressClickRef.current = false;
+    }, []);
 
     return (
-      <div ref={ref} className="relative w-full h-full overflow-hidden flex flex-col sm:flex-row">
+      <div
+        ref={ref}
+        className="relative w-full h-full overflow-hidden flex flex-col sm:flex-row"
+        style={{ touchAction: 'pan-y' }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onClickCapture={suppressClickAfterSwipe}
+      >
         {/* Color panel */}
         <div
           ref={colorRef}
-          className="w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative cursor-pointer select-none z-10"
+          className="w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative select-none z-10"
           style={{ backgroundColor: bgHex, containerType: 'size' }}
           onMouseEnter={handleEnter}
           onMouseLeave={handleLeave}
-          onClick={handleClick}
         >
-          <span
+          <button
+            type="button"
             ref={textRef}
-            className="absolute text-[80px] sm:text-[120px] md:text-[160px] lg:text-[200px] leading-[1] tracking-tight select-none"
+            className="absolute cursor-pointer bg-transparent border-0 p-0 text-[80px] sm:text-[120px] md:text-[160px] lg:text-[200px] leading-[1] tracking-tight select-none outline-none focus-visible:ring-2 focus-visible:ring-white/35 focus-visible:ring-offset-4 focus-visible:ring-offset-transparent"
+            aria-label="Swap foreground and background colors"
+            onClick={handleSpecimenClick}
             style={{
               color: fgHex,
               fontFamily: "'Instrument Serif', serif",
             }}
           >
             Aa
-          </span>
+          </button>
 
           <div
             ref={circleRef}

@@ -69,6 +69,7 @@ interface ControlContainerProps {
   onLeftArrow?: () => void;
   onRightArrow?: () => void;
   onExportToggle?: () => void;
+  exportFeedback?: 'url' | 'params' | 'markdown' | null;
   onCopyUrl?: () => void;
   onCopyParams?: () => void;
   onDownloadMd?: () => void;
@@ -145,6 +146,7 @@ export function ControlContainer({
   onLeftArrow,
   onRightArrow,
   onExportToggle,
+  exportFeedback,
   onCopyUrl,
   onCopyParams,
   onDownloadMd,
@@ -152,6 +154,9 @@ export function ControlContainer({
 }: ControlContainerProps) {
   // Mobile-only: sliders are mutually exclusive with score/export states.
   const mobileSlidersOpen = slidersExpanded && controlsState === 'default';
+  const copyUrlLabel = exportFeedback === 'url' ? 'COPIED URL' : 'COPY URL';
+  const copyParamsLabel = exportFeedback === 'params' ? 'COPIED PARAMS' : 'COPY PARAMETERS';
+  const downloadMdLabel = exportFeedback === 'markdown' ? 'DOWNLOADED .MD' : 'DOWNLOAD .MD';
 
   // Smoothly animate the threshold stack's height when toggling between
   // WCAG (4 rows) and APCA (5 rows). useLayoutEffect captures the previous
@@ -249,7 +254,9 @@ export function ControlContainer({
           onLeftArrow={onLeftArrow}
           onRightArrow={onRightArrow}
           onExportToggle={onExportToggle}
+          exportFeedback={exportFeedback}
           onCopyUrl={onCopyUrl}
+          onCopyParams={onCopyParams}
           onDownloadMd={onDownloadMd}
         />
       </div>
@@ -304,9 +311,9 @@ export function ControlContainer({
 
         {/* Export panel — action stack. Opens ABOVE the always-visible score/export row. */}
         <YPanel open={controlsState === 'export'} className="flex flex-col gap-3 pt-3">
-          <CSButton label="COPY URL" animated onClick={onCopyUrl} className="w-full" />
-          <CSButton label="COPY PARAMETERS" animated onClick={onCopyParams} className="w-full" />
-          <CSButton label="DOWNLOAD .MD" animated onClick={onDownloadMd} className="w-full" />
+          <CSButton label={copyUrlLabel} animated onClick={onCopyUrl} className="w-full" />
+          <CSButton label={copyParamsLabel} animated onClick={onCopyParams} className="w-full" />
+          <CSButton label={downloadMdLabel} animated onClick={onDownloadMd} className="w-full" />
         </YPanel>
 
         {/* Swatches row — Y-collapses when a panel is open (score or export).

@@ -132,6 +132,7 @@ export function ColorShift() {
   const [controlsState, setControlsState] = useState<'default' | 'score' | 'export'>('default');
   const [slidersExpanded, setSlidersExpanded] = useState(false);
   const [sliderTarget, setSliderTarget] = useState<'bg' | 'fg'>('bg');
+  const [exportFeedback, setExportFeedback] = useState<'url' | 'params' | 'markdown' | null>(null);
 
   // ── Photo state ──
   const [photoBuffer, setPhotoBuffer] = useState<PhotoData[]>([]);
@@ -532,17 +533,26 @@ export function ColorShift() {
 
   const copyShareUrl = useCallback(async () => {
     await navigator.clipboard.writeText(getShareUrl());
+    setExportFeedback('url');
   }, [getShareUrl]);
 
   const copyParameters = useCallback(async () => {
     await navigator.clipboard.writeText(buildShareParams().toString());
+    setExportFeedback('params');
   }, [buildShareParams]);
 
   const downloadMarkdown = useCallback(() => {
     const bgName = bg.hex.replace('#', '').toLowerCase();
     const fgName = fg.hex.replace('#', '').toLowerCase();
     downloadTextFile(`color-shift-${bgName}-${fgName}.md`, getExportMarkdown());
+    setExportFeedback('markdown');
   }, [bg.hex, fg.hex, getExportMarkdown]);
+
+  useEffect(() => {
+    if (!exportFeedback) return;
+    const timeout = window.setTimeout(() => setExportFeedback(null), 1400);
+    return () => window.clearTimeout(timeout);
+  }, [exportFeedback]);
 
   const onDragStart = useCallback(() => { isDraggingRef.current = true; }, []);
   const onDragEnd = useCallback(() => { isDraggingRef.current = false; }, []);
@@ -685,6 +695,9 @@ export function ColorShift() {
           bgHex={bgHex}
           fgHex={fgHex}
           onPhotoFileSelected={injectPhotoFromFile}
+          onSpecimenClick={swap}
+          onSwipeLeft={() => navigateTo(photoIndex + 1)}
+          onSwipeRight={() => navigateTo(photoIndex - 1)}
         />
       </div>
 
@@ -743,6 +756,7 @@ export function ColorShift() {
         onLeftArrow={() => navigateTo(photoIndex - 1)}
         onRightArrow={() => navigateTo(photoIndex + 1)}
         onExportToggle={() => setControlsState(s => s === 'export' ? 'default' : 'export')}
+        exportFeedback={exportFeedback}
         onCopyUrl={copyShareUrl}
         onCopyParams={copyParameters}
         onDownloadMd={downloadMarkdown}
