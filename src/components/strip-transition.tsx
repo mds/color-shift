@@ -36,15 +36,12 @@ interface StripTransitionProps {
 export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
   ({ photo, bgHex, fgHex, onPhotoFileSelected, onSpecimenClick, onSwipeLeft, onSwipeRight }, ref) => {
 
-    const colorRef = useRef<HTMLDivElement>(null);
-    const textRef = useRef<HTMLButtonElement>(null);
-    const circleRef = useRef<HTMLDivElement>(null);
+    const colorRef = useRef<HTMLButtonElement>(null);
+    const textRef = useRef<HTMLSpanElement>(null);
     const photoContainerRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDraggingOver, setIsDraggingOver] = useState(false);
     const prevPhotoId = useRef<string | null>(null);
-    const [showText] = useState(true);
-    const isHoveringRef = useRef(false);
     const swipeStartRef = useRef<{ x: number; y: number; pointerId: number; didSwipe: boolean } | null>(null);
     const suppressClickRef = useRef(false);
 
@@ -62,12 +59,11 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
     useEffect(() => {
       if (!photo) return;
       if (photo.id === prevPhotoId.current) return;
-      const isFirstLoad = prevPhotoId.current === null;
       prevPhotoId.current = photo.id;
       const el = photoContainerRef.current;
       if (!el) return;
 
-      const { photo: p, hover } = getMotionParams();
+      const { photo: p } = getMotionParams();
       const t = { duration: p.duration, ease: p.ease, overwrite: true as const };
 
       switch (p.style) {
@@ -87,48 +83,11 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
           gsap.fromTo(el, { opacity: p.startOpacity, scale: p.startScale, filter: 'none', x: '30%' }, { opacity: 1, scale: 1, x: '0%', ...t });
           break;
       }
-
-      // Simulate a hover pulse on the color panel's active element
-      // Skip on first load, and skip entirely if the color panel is already hovered
-      if (!isFirstLoad && !isHoveringRef.current) {
-        const active = showText ? textRef.current : circleRef.current;
-        if (active) {
-          const pulseHalf = hover.navPulseDuration / 2;
-          gsap.timeline()
-            .to(active, { scale: hover.navPulseScale, duration: pulseHalf, ease: hover.ease, overwrite: true })
-            .to(active, { scale: 1, duration: pulseHalf, ease: hover.ease });
-        }
-      }
-    }, [photo, showText]);
-
-    const handleEnter = useCallback(() => {
-      isHoveringRef.current = true;
-      const active = showText ? textRef.current : circleRef.current;
-      if (!active) return;
-      const { hover } = getMotionParams();
-      gsap.to(active, { scale: hover.scale, duration: hover.duration, ease: hover.ease, overwrite: true });
-    }, [showText]);
-
-    const handleLeave = useCallback(() => {
-      isHoveringRef.current = false;
-      const active = showText ? textRef.current : circleRef.current;
-      if (!active) return;
-      const { hover } = getMotionParams();
-      gsap.to(active, { scale: 1, duration: hover.duration, ease: hover.ease, overwrite: true });
-    }, [showText]);
+    }, [photo]);
 
     const handleSpecimenClick = useCallback(() => {
-      const active = showText ? textRef.current : circleRef.current;
-      if (!active) return;
-
-      const { hover, click } = getMotionParams();
-      const targetScale = isHoveringRef.current ? hover.scale : 1;
-      gsap.timeline()
-        .to(active, { scale: targetScale * 0.94, duration: click.duration / 2, ease: click.ease, overwrite: true })
-        .to(active, { scale: targetScale, duration: click.duration / 2, ease: click.ease });
-
       onSpecimenClick?.();
-    }, [onSpecimenClick, showText]);
+    }, [onSpecimenClick]);
 
     const handlePointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
       if (event.pointerType !== 'touch' || !event.isPrimary) return;
@@ -189,37 +148,25 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
         onClickCapture={suppressClickAfterSwipe}
       >
         {/* Color panel */}
-        <div
+        <button
+          type="button"
           ref={colorRef}
-          className="w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative select-none z-10"
+          className="group w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative select-none z-10 cursor-pointer border-0 p-0 text-center outline-none focus-visible:ring-2 focus-visible:ring-white/35 focus-visible:ring-inset"
+          aria-label="Swap foreground and background colors"
           style={{ backgroundColor: bgHex, containerType: 'size' }}
-          onMouseEnter={handleEnter}
-          onMouseLeave={handleLeave}
+          onClick={handleSpecimenClick}
         >
-          <button
-            type="button"
+          <span
             ref={textRef}
-            className="absolute cursor-pointer bg-transparent border-0 p-0 text-[80px] sm:text-[120px] md:text-[160px] lg:text-[200px] leading-[1] tracking-tight select-none outline-none focus-visible:ring-2 focus-visible:ring-white/35 focus-visible:ring-offset-4 focus-visible:ring-offset-transparent"
-            aria-label="Swap foreground and background colors"
-            onClick={handleSpecimenClick}
+            className="absolute text-[80px] sm:text-[120px] md:text-[160px] lg:text-[200px] leading-[1] tracking-tight select-none transition-transform duration-100 ease-out will-change-transform group-hover:scale-[1.03] group-active:scale-[0.97]"
             style={{
               color: fgHex,
               fontFamily: "'Instrument Serif', serif",
             }}
           >
             Aa
-          </button>
-
-          <div
-            ref={circleRef}
-            className="absolute"
-            style={{ opacity: 0, transform: 'scale(0)' }}
-          >
-            <svg viewBox="0 0 100 100" className="w-[50cqh] h-[50cqh] sm:w-[20vh] sm:h-[20vh]">
-              <circle cx="50" cy="50" r="50" fill={fgHex} />
-            </svg>
-          </div>
-        </div>
+          </span>
+        </button>
 
         {/* Photo panel — tap to open native file picker (photo library / camera on mobile).
             Also supports drag-and-drop of image files on desktop. */}
