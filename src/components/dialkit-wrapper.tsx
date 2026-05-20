@@ -13,6 +13,8 @@ export function DialKitWrapper() {
 
   // Defer mount to client-only to avoid SSR hydration mismatch
   useEffect(() => {
+    // DialKit is a development-only client overlay; mount after hydration.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     try {
       const stored = localStorage.getItem(STORAGE_KEY);

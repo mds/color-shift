@@ -396,7 +396,8 @@ export function formatColorValue(data: ColorData, format: ColorFormat): string {
 
 export function generateExportMarkdown(
   bg: ColorData, fg: ColorData, contrast: ContrastResult, algorithm: ContrastAlgorithm,
-  photoCredit?: { photographer: string; photoUrl: string }
+  photoCredit?: { photographer: string; photoUrl: string },
+  shareUrl?: string
 ): string {
   let md = `# Color Shift Export
 
@@ -419,6 +420,13 @@ export function generateExportMarkdown(
 - Grade: ${contrast.grade}
 - ${contrast.gradeDesc}
 `;
+
+  if (shareUrl) {
+    md += `
+## Share
+- URL: ${shareUrl}
+`;
+  }
 
   if (photoCredit) {
     md += `

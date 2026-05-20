@@ -337,8 +337,9 @@
     - `onLeftArrow`, `onRightArrow` → `navigateTo` (wraps)
     - `onSliderChange`, `onSliderDragStart/End`, `onSliderModeChange`, `onSlidersClose`, `onGripClick`
     - `onExportToggle`
-    - `onCopyUrl` → `copyExport()` → `navigator.clipboard.writeText(generateExportMarkdown(bg, fg, contrast, contrastAlgorithm, photoCredit))` (lines 456–459). `photoCredit` at line 456: `photoData ? { photographer: photoData.photographer, photoUrl: photoData.photoUrl } : undefined`.
-    - `onDownloadMd={() => {}}` — **STUB, no-op at line 661**.
+    - `onCopyUrl` → `copyShareUrl()` → writes a deep link with `photo`, `bg`, `fg`, and `algo` query params.
+    - `onCopyParams` → `copyParameters()` → writes only the deep-link query string.
+    - `onDownloadMd` → `downloadMarkdown()` → downloads `generateExportMarkdown(...)` as a `.md` file with contrast data, share URL, and photo credit.
 
     ### Handlers passed to `StripTransition` (lines 565–571)
     - `ref={stripRef}`, `photo={photoData}`, `bgHex`, `fgHex`
@@ -358,7 +359,7 @@
 
     ## 4. Photo Pipeline
 
-    ### `/api/photos?count=N` (`src/app/api/photos/route.ts`)
+    ### `/api/photos?count=N` and `/api/photos?id=<unsplashId>` (`src/app/api/photos/route.ts`)
     - GET handler, count clamped 1–30.
     - Calls Unsplash `/photos/random?orientation=landscape&query=${term}` with `Authorization: Client-ID ${UNSPLASH_ACCESS_KEY}`.
     - `cache: 'no-store'` — every request hits upstream.
@@ -519,7 +520,7 @@
     - HSB → `"h°, s%, b%"`
     - OKLCH → `"l% c h°"`
 
-    ### `generateExportMarkdown(bg, fg, contrast, algorithm, photoCredit?)` (lines 397–432)
+    ### `generateExportMarkdown(bg, fg, contrast, algorithm, photoCredit?, shareUrl?)` (lines 397–432)
     Output shape:
     ```md
     # Color Shift Export
@@ -595,7 +596,7 @@
     Render order top → bottom:
     1. **Slider YPanel** — open when `mobileSlidersOpen = slidersExpanded && controlsState === 'default'`. Contains `ColorMode` (with `showClose`/`onClose` commented out) + `ColorSliders`.
     2. **Score YPanel** — open when `controlsState === 'score'`. Contains a vertical threshold stack. The wrapper is ref'd; a `useLayoutEffect` captures previous height and GSAP-tweens (0.25s power2.out) on `algorithm`/`thresholds` change, then releases to `height: auto`.
-    3. **Export YPanel** — open when `controlsState === 'export'`. Three full-width `CSButton`s: COPY URL, COPY PARAMETERS (no-op onClick), DOWNLOAD .MD.
+    3. **Export YPanel** — open when `controlsState === 'export'`. Three full-width `CSButton`s: COPY URL, COPY PARAMETERS, DOWNLOAD .MD. All are wired to live handlers.
     4. **Swatches YPanel** — open when `controlsState === 'default'`. `pt-4` **only when `mobileSlidersOpen`** (breathing room from sliders above). Inside: `CSButton(fg)` / `IconButton(swap)` / `CSButton(bg)` in `justify-between`.
     5. **Always-rendered Score+Export row** — not a YPanel itself, but Score is wrapped in a nested YPanel that collapses when `controlsState === 'export'`. The right-side button is a single `<button>` whose `TubeText` swaps between `EXPORT` and `WCAG` / `APCA` based on state, with click handler routing to `onExportToggle` or `onAlgorithmToggle`.
     6. **Always-rendered arrows row** — bare flex row with two `IconButton`s containing `LeftArrowIcon` / `RightArrowIcon` at `size-[30px]` (1.25× the primitive's default 24px).
@@ -1148,7 +1149,7 @@
 
     ### Runtime risks
     6. **Object URL leak on uploads**: `injectPhotoFromFile` never calls `URL.revokeObjectURL`. Session-scoped growth; acceptable for single-session tool but not for long-lived sessions.
-    7. **`onDownloadMd` is a stub**: handler exists but does nothing. Download .md button is non-functional.
+    7. **Export/share implemented 2026-05-20**: COPY URL, COPY PARAMETERS, DOWNLOAD .MD, and direct Unsplash photo deep links are wired. Remaining risk is browser clipboard permission behavior on non-secure origins.
     8. **Unsplash free tier rate limit**: 50 req/hour/IP. `cache: 'no-store'` means every fetch hits upstream.
     9. **Hardcoded LAN IP** in `next.config.ts` (`allowedDevOrigins: ['192.168.86.41']`). Won't work from other devices; update when laptop switches networks.
 

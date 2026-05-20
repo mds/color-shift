@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+/* eslint-disable @typescript-eslint/no-require-imports */
+
 // Precompute separate SVG paths for "A" and "a" glyphs.
 // Each glyph gets its own complete path (outer + inner combined).
 // MorphSVG morphs A→A and a→a independently — no cross-contamination.

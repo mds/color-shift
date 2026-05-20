@@ -28,7 +28,7 @@ export function TubeText({ text, className, style }: TubeTextProps) {
       el.textContent = text;
       mountedRef.current = true;
     }
-  }, []); // intentionally stable — only runs on mount
+  }, [text]);
 
   useLayoutEffect(() => {
     const prev = prevTextRef.current;

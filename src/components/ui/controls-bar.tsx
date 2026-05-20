@@ -58,6 +58,7 @@ interface ControlsBarProps {
   onRightArrow?: () => void;
   onExportToggle?: () => void;
   onCopyUrl?: () => void;
+  onCopyParams?: () => void;
   onDownloadMd?: () => void;
   className?: string;
 }
@@ -84,6 +85,7 @@ export function ControlsBar({
   onRightArrow,
   onExportToggle,
   onCopyUrl,
+  onCopyParams,
   onDownloadMd,
   className,
 }: ControlsBarProps) {
@@ -253,6 +255,7 @@ export function ControlsBar({
             }}
           >
             <CSButton label="COPY URL" onClick={onCopyUrl} />
+            <CSButton label="COPY PARAMETERS" onClick={onCopyParams} />
             <CSButton label="DOWNLOAD .MD" onClick={onDownloadMd} />
           </div>
           <button
@@ -333,6 +336,7 @@ export function ControlsBar({
               className="flex items-center gap-1"
             >
               <CSButton label="COPY URL" onClick={onCopyUrl} />
+              <CSButton label="COPY PARAMETERS" onClick={onCopyParams} />
               <CSButton label="DOWNLOAD .MD" onClick={onDownloadMd} />
             </div>
 

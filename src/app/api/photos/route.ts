@@ -42,6 +42,19 @@ function mapPhoto(photo: Record<string, unknown>) {
   };
 }
 
+async function fetchById(id: string, key: string): Promise<Record<string, unknown> | null> {
+  try {
+    const res = await fetch(
+      `https://api.unsplash.com/photos/${encodeURIComponent(id)}`,
+      { headers: { Authorization: `Client-ID ${key}` }, cache: 'no-store' },
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 async function fetchOne(query: string, key: string): Promise<Record<string, unknown> | null> {
   try {
     const res = await fetch(
@@ -64,9 +77,18 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
+  const id = searchParams.get('id')?.trim();
   const count = Math.min(parseInt(searchParams.get('count') ?? '1'), 30);
 
   try {
+    if (id) {
+      const photo = await fetchById(id, key);
+      if (!photo) {
+        return NextResponse.json({ error: 'Photo not found' }, { status: 404 });
+      }
+      return NextResponse.json(mapPhoto(photo));
+    }
+
     // Fire parallel requests with different query terms for maximum diversity
     const queries = pickQueries(count);
     const results = await Promise.all(queries.map(q => fetchOne(q, key)));

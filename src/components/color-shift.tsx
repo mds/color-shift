@@ -15,7 +15,6 @@ import {
   nearestThreshold,
   nextThresholdUp,
   nextThresholdDown,
-  formatColorValue,
   generateExportMarkdown,
   parseAnyColor,
   extractContrastPair,
@@ -26,7 +25,7 @@ import {
   type OklchValues,
   type VibrantPalette,
 } from '@/lib/color-engine';
-import { ControlStrip, type PhotoData } from './control-strip';
+import type { PhotoData } from './control-strip';
 import { StripTransition } from './strip-transition';
 import { getFontForPhoto } from '@/lib/fonts';
 import { ControlContainer } from './ui/control-container';
@@ -36,6 +35,38 @@ interface PhotoColors { bg: string; fg: string; }
 // ── Pure color-space converters (module scope, no closures) ──
 
 type ColorData = ReturnType<typeof hexToColorData>;
+type SliderConfig = {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  displayValue: string;
+  gradients: { oklch: string; hsb: string; rgb: string };
+  trackDark: boolean;
+};
+
+function normalizeHexParam(value: string | null): string | null {
+  if (!value) return null;
+  const parsed = parseAnyColor(value);
+  return parsed && /^#[0-9a-f]{6}$/i.test(parsed) ? parsed : null;
+}
+
+function normalizeAlgorithmParam(value: string | null): ContrastAlgorithm {
+  return value?.toLowerCase() === 'apca' ? 'APCA' : 'WCAG2';
+}
+
+function downloadTextFile(filename: string, contents: string) {
+  const blob = new Blob([contents], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
 
 function colorToPercent(cd: ColorData, mode: SliderMode): [number, number, number] {
   if (mode === 'OKLCH') {
@@ -222,7 +253,6 @@ export function ColorShift() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [motionParams]);
   const stripRef = useRef<HTMLDivElement>(null);
-  const specimenInputRef = useRef<HTMLInputElement>(null);
   const preloadedImages = useRef<Set<HTMLImageElement>>(new Set());
 
   // ── Derived ──
@@ -238,6 +268,13 @@ export function ColorShift() {
     const data = await res.json();
     if (!res.ok || data.error) { console.warn('Photo API:', data.error); return []; }
     return data as PhotoData[];
+  }, []);
+
+  const fetchPhotoById = useCallback(async (id: string): Promise<PhotoData | null> => {
+    const res = await fetch(`/api/photos?id=${encodeURIComponent(id)}`);
+    const data = await res.json();
+    if (!res.ok || data.error) { console.warn('Photo API:', data.error); return null; }
+    return data as PhotoData;
   }, []);
 
   const MAX_PRELOADED = 20;
@@ -261,7 +298,10 @@ export function ColorShift() {
     });
   }, [trackImage]);
 
-  const extractColorsFromPhoto = useCallback(async (photo: PhotoData): Promise<PhotoColors | null> => {
+  const extractColorsFromPhoto = useCallback(async (
+    photo: PhotoData,
+    algorithm = contrastAlgorithm
+  ): Promise<PhotoColors | null> => {
     return new Promise((resolve) => {
       const img = new window.Image();
       img.crossOrigin = 'anonymous';
@@ -278,20 +318,20 @@ export function ColorShift() {
             DarkMuted: palette.DarkMuted ? { hex: palette.DarkMuted.hex, population: palette.DarkMuted.population } : null,
             LightMuted: palette.LightMuted ? { hex: palette.LightMuted.hex, population: palette.LightMuted.population } : null,
           };
-          resolve(extractContrastPair(mapped, contrastAlgorithm));
+          resolve(extractContrastPair(mapped, algorithm));
         } catch { resolve(null); }
       };
       img.onerror = () => resolve(null);
     });
   }, [contrastAlgorithm]);
 
-  const extractBatchColors = useCallback(async (photos: PhotoData[]) => {
+  const extractBatchColors = useCallback(async (photos: PhotoData[], algorithm = contrastAlgorithm) => {
     const toExtract = photos.filter(p => !colorMap.has(p.id));
     if (toExtract.length === 0) return;
     const batchSize = 5;
     for (let i = 0; i < toExtract.length; i += batchSize) {
       const batch = toExtract.slice(i, i + batchSize);
-      const results = await Promise.all(batch.map(p => extractColorsFromPhoto(p).then(r => ({ id: p.id, colors: r }))));
+      const results = await Promise.all(batch.map(p => extractColorsFromPhoto(p, algorithm).then(r => ({ id: p.id, colors: r }))));
       setColorMap(prev => {
         let changed = false;
         const next = new Map(prev);
@@ -301,7 +341,7 @@ export function ColorShift() {
         return changed ? next : prev;
       });
     }
-  }, [colorMap, extractColorsFromPhoto]);
+  }, [colorMap, contrastAlgorithm, extractColorsFromPhoto]);
 
   const dedupePhotos = useCallback((existing: PhotoData[], incoming: PhotoData[]): PhotoData[] => {
     const ids = new Set(existing.map(p => p.id));
@@ -326,16 +366,26 @@ export function ColorShift() {
 
   const loadPhotos = useCallback(async () => {
     setIsPhotoLoading(true);
-    const photos = await fetchPhotos(10);
+    const params = new URLSearchParams(window.location.search);
+    const linkedPhotoId = params.get('photo')?.trim() || null;
+    const linkedBg = normalizeHexParam(params.get('bg'));
+    const linkedFg = normalizeHexParam(params.get('fg'));
+    const linkedAlgorithm = normalizeAlgorithmParam(params.get('algo'));
+    const linkedPhoto = linkedPhotoId ? await fetchPhotoById(linkedPhotoId) : null;
+    const randomPhotos = await fetchPhotos(linkedPhoto ? 9 : 10);
+    const photos = linkedPhoto
+      ? [linkedPhoto, ...dedupePhotos([linkedPhoto], randomPhotos)]
+      : randomPhotos;
     if (photos.length === 0) { setIsPhotoLoading(false); return; }
     preloadThumbs(photos);
     preloadImages(photos.slice(0, 3));
+    setContrastAlgorithm(linkedAlgorithm);
     setPhotoBuffer(photos);
     setPhotoIndex(0);
-    setManualColors(null);
+    setManualColors(linkedBg && linkedFg ? { bg: linkedBg, fg: linkedFg } : null);
     setIsPhotoLoading(false);
-    extractBatchColors(photos);
-  }, [fetchPhotos, preloadImages, preloadThumbs, extractBatchColors]);
+    extractBatchColors(photos, linkedAlgorithm);
+  }, [fetchPhotoById, fetchPhotos, preloadImages, preloadThumbs, extractBatchColors, dedupePhotos]);
 
   useEffect(() => {
     if (hasInitialLoad.current) return;
@@ -453,10 +503,40 @@ export function ColorShift() {
   }, []);
 
   // ── Export ──
-  const photoCredit = photoData ? { photographer: photoData.photographer, photoUrl: photoData.photoUrl } : undefined;
-  const copyExport = useCallback(async () => {
-    await navigator.clipboard.writeText(generateExportMarkdown(bg, fg, contrast, contrastAlgorithm, photoCredit));
-  }, [bg, fg, contrast, contrastAlgorithm, photoCredit]);
+  const buildShareParams = useCallback(() => {
+    const params = new URLSearchParams();
+    if (photoData && !photoData.id.startsWith('upload-')) params.set('photo', photoData.id);
+    params.set('bg', bg.hex.replace('#', '').toUpperCase());
+    params.set('fg', fg.hex.replace('#', '').toUpperCase());
+    params.set('algo', contrastAlgorithm === 'APCA' ? 'apca' : 'wcag');
+    return params;
+  }, [bg.hex, fg.hex, contrastAlgorithm, photoData]);
+
+  const getShareUrl = useCallback(() => {
+    const params = buildShareParams();
+    return `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+  }, [buildShareParams]);
+
+  const getExportMarkdown = useCallback(() => {
+    const photoCredit = photoData
+      ? { photographer: photoData.photographer, photoUrl: photoData.photoUrl }
+      : undefined;
+    return generateExportMarkdown(bg, fg, contrast, contrastAlgorithm, photoCredit, getShareUrl());
+  }, [bg, fg, contrast, contrastAlgorithm, photoData, getShareUrl]);
+
+  const copyShareUrl = useCallback(async () => {
+    await navigator.clipboard.writeText(getShareUrl());
+  }, [getShareUrl]);
+
+  const copyParameters = useCallback(async () => {
+    await navigator.clipboard.writeText(buildShareParams().toString());
+  }, [buildShareParams]);
+
+  const downloadMarkdown = useCallback(() => {
+    const bgName = bg.hex.replace('#', '').toLowerCase();
+    const fgName = fg.hex.replace('#', '').toLowerCase();
+    downloadTextFile(`color-shift-${bgName}-${fgName}.md`, getExportMarkdown());
+  }, [bg.hex, fg.hex, getExportMarkdown]);
 
   const onDragStart = useCallback(() => { isDraggingRef.current = true; }, []);
   const onDragEnd = useCallback(() => { isDraggingRef.current = false; }, []);
@@ -546,7 +626,7 @@ export function ColorShift() {
       `linear-gradient(90deg, ${rgbToHex(Math.round(rV[0]), Math.round(rV[1]), 0)}, ${rgbToHex(Math.round(rV[0]), Math.round(rV[1]), 255)})`,
     ];
 
-    return [0, 1, 2].map((i) => ({
+    return [0, 1, 2].map((i): SliderConfig => ({
       label: labels[i],
       value: sliderPos[i],
       min: 0,
@@ -562,7 +642,7 @@ export function ColorShift() {
         rgbToHex(i === 0 ? 255 : Math.round(rV[0]), i === 1 ? 255 : Math.round(rV[1]), i === 2 ? 255 : Math.round(rV[2]))
       ),
       gradients: { oklch: oG[i], hsb: hG[i], rgb: rG[i] },
-    })) as [any, any, any];
+    })) as [SliderConfig, SliderConfig, SliderConfig];
   }, [sliderPos, sliderMode, sliderTarget, bg, fg]);
 
   // ── Keyboard — use ref for index so handler always reads latest ──
@@ -572,13 +652,13 @@ export function ColorShift() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' && target !== specimenInputRef.current) return;
+      if (target.tagName === 'INPUT') return;
       const idx = photoIndexRef.current;
       if (e.key === 'ArrowRight') { e.preventDefault(); navigateTo(idx + 1); }
       if (e.key === 'ArrowLeft') { e.preventDefault(); navigateTo(idx - 1); }
-      if (e.code === 'Space' && target !== specimenInputRef.current) { e.preventDefault(); injectPhoto(); }
-      if ((e.key === 's' || e.key === 'S') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) { e.preventDefault(); swap(); }
-      if ((e.key === 't' || e.key === 'T') && !e.metaKey && !e.ctrlKey && target !== specimenInputRef.current) { e.preventDefault(); toggleTheme(); }
+      if (e.code === 'Space') { e.preventDefault(); injectPhoto(); }
+      if ((e.key === 's' || e.key === 'S') && !e.metaKey && !e.ctrlKey) { e.preventDefault(); swap(); }
+      if ((e.key === 't' || e.key === 'T') && !e.metaKey && !e.ctrlKey) { e.preventDefault(); toggleTheme(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -657,8 +737,9 @@ export function ColorShift() {
         onLeftArrow={() => navigateTo(photoIndex - 1)}
         onRightArrow={() => navigateTo(photoIndex + 1)}
         onExportToggle={() => setControlsState(s => s === 'export' ? 'default' : 'export')}
-        onCopyUrl={copyExport}
-        onDownloadMd={() => {}}
+        onCopyUrl={copyShareUrl}
+        onCopyParams={copyParameters}
+        onDownloadMd={downloadMarkdown}
       />
     </div>
   );

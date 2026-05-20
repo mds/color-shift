@@ -25,7 +25,7 @@ src/
 │   ├── page.tsx                # <ColorShift /> only
 │   ├── globals.css             # Tailwind v4 config + design tokens
 │   └── api/
-│       └── photos/route.ts     # Unsplash rotator (/api/photos)
+│       └── photos/route.ts     # Unsplash rotator + direct photo lookup (/api/photos)
 ├── components/
 │   ├── color-shift.tsx         # 665-line client component — all state lives here
 │   ├── strip-transition.tsx    # Color panel + photo panel stacked display
@@ -102,7 +102,15 @@ Files in `src/components/ui/` are treated as stable primitives. When doing layou
 
 ## API Routes
 
-- `GET /api/photos` — Unsplash random rotator. Cycles through a 44-query pool to force palette breadth (raw `/photos/random` is too narrow). Requires `UNSPLASH_ACCESS_KEY`.
+- `GET /api/photos?count=N` — Unsplash random rotator. Cycles through a 44-query pool to force palette breadth (raw `/photos/random` is too narrow). Requires `UNSPLASH_ACCESS_KEY`.
+- `GET /api/photos?id=<unsplashId>` — fetches one specific Unsplash photo for share/deep-link restoration.
+
+## Export / Share Links
+
+- `COPY URL` writes a deep link with `photo`, `bg`, `fg`, and `algo` query params when an Unsplash photo is active.
+- `COPY PARAMETERS` writes just the query string parameters for handoff/debugging.
+- `DOWNLOAD .MD` writes the same markdown export as `generateExportMarkdown`, including contrast data, share URL, and photo credit.
+- On initial load, `color-shift.tsx` reads `photo`, `bg`, `fg`, and `algo` from `window.location.search`; direct photo links call `/api/photos?id=...`, then fill the rest of the buffer with random photos.
 
 ## Commands
 

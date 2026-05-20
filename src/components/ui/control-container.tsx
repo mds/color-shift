@@ -70,6 +70,7 @@ interface ControlContainerProps {
   onRightArrow?: () => void;
   onExportToggle?: () => void;
   onCopyUrl?: () => void;
+  onCopyParams?: () => void;
   onDownloadMd?: () => void;
 
   className?: string;
@@ -145,6 +146,7 @@ export function ControlContainer({
   onRightArrow,
   onExportToggle,
   onCopyUrl,
+  onCopyParams,
   onDownloadMd,
   className,
 }: ControlContainerProps) {
@@ -303,7 +305,7 @@ export function ControlContainer({
         {/* Export panel — action stack. Opens ABOVE the always-visible score/export row. */}
         <YPanel open={controlsState === 'export'} className="flex flex-col gap-3 pt-3">
           <CSButton label="COPY URL" animated onClick={onCopyUrl} className="w-full" />
-          <CSButton label="COPY PARAMETERS" animated onClick={() => {}} className="w-full" />
+          <CSButton label="COPY PARAMETERS" animated onClick={onCopyParams} className="w-full" />
           <CSButton label="DOWNLOAD .MD" animated onClick={onDownloadMd} className="w-full" />
         </YPanel>
 
