@@ -38,6 +38,7 @@ function mapPhoto(photo: Record<string, unknown>) {
     photographer: user.name as string,
     photographerUrl: userLinks.html,
     photoUrl: links.html,
+    downloadLocation: links.download_location,
     alt: (photo.alt_description as string) ?? 'Unsplash photo',
   };
 }
@@ -78,6 +79,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id')?.trim();
+  const query = searchParams.get('query')?.trim();
   const count = Math.min(parseInt(searchParams.get('count') ?? '1'), 30);
 
   try {
@@ -89,8 +91,12 @@ export async function GET(request: Request) {
       return NextResponse.json(mapPhoto(photo));
     }
 
-    // Fire parallel requests with different query terms for maximum diversity
-    const queries = pickQueries(count);
+    // Fire parallel requests with different query terms for maximum diversity.
+    // iOS can pass query=<theme> to request a specific photo theme while still
+    // keeping the Unsplash key server-side.
+    const queries = query
+      ? Array.from({ length: count }, () => query)
+      : pickQueries(count);
     const results = await Promise.all(queries.map(q => fetchOne(q, key)));
     const photos = results.filter((p): p is Record<string, unknown> => p !== null);
 
