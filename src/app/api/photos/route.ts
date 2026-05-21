@@ -71,6 +71,18 @@ async function fetchOne(query: string, key: string): Promise<Record<string, unkn
   }
 }
 
+async function trackDownload(id: string, key: string): Promise<boolean> {
+  try {
+    const res = await fetch(
+      `https://api.unsplash.com/photos/${encodeURIComponent(id)}/download`,
+      { headers: { Authorization: `Client-ID ${key}` }, cache: 'no-store' },
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(request: Request) {
   const key = process.env.UNSPLASH_ACCESS_KEY;
   if (!key) {
@@ -79,10 +91,16 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id')?.trim();
+  const download = searchParams.get('download')?.trim();
   const query = searchParams.get('query')?.trim();
   const count = Math.min(parseInt(searchParams.get('count') ?? '1'), 30);
 
   try {
+    if (download) {
+      const ok = await trackDownload(download, key);
+      return NextResponse.json({ ok }, { status: ok ? 200 : 502 });
+    }
+
     if (id) {
       const photo = await fetchById(id, key);
       if (!photo) {
