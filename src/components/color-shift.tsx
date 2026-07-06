@@ -704,6 +704,28 @@ export function ColorShift() {
     return () => window.removeEventListener('message', onMessage);
   }, [navigateTo]);
 
+  // ── Embed API, outbound — when embedded, report the FIRST real user
+  // interaction to the parent so it can stop any ambient choreography
+  // (the /claude band cycles photos on a timer until the reader takes
+  // over). Fire-and-forget notification, no payload beyond the type. ──
+  useEffect(() => {
+    if (window.parent === window) return;
+    let sent = false;
+    const send = () => {
+      if (sent) return;
+      sent = true;
+      window.parent.postMessage({ type: 'colorshift:interacted' }, '*');
+    };
+    window.addEventListener('pointerdown', send, true);
+    window.addEventListener('keydown', send, true);
+    window.addEventListener('touchstart', send, true);
+    return () => {
+      window.removeEventListener('pointerdown', send, true);
+      window.removeEventListener('keydown', send, true);
+      window.removeEventListener('touchstart', send, true);
+    };
+  }, []);
+
   return (
     <div
       ref={rootRef}
