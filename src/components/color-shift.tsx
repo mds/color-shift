@@ -680,6 +680,30 @@ export function ColorShift() {
     return () => window.removeEventListener('keydown', handler);
   }, [navigateTo, injectPhoto, swap, toggleTheme]);
 
+  // ── Embed API — the shiftnudge.com /claude embed posts a message when
+  // the reader activates the module; advancing one photo makes the app
+  // visibly come alive the moment the click-shield drops. Origin-gated
+  // to the shiftnudge surfaces only. ──
+  useEffect(() => {
+    const allowed = (origin: string) =>
+      origin === 'https://shiftnudge.com' ||
+      origin === 'https://www.shiftnudge.com' ||
+      origin === 'https://shiftnudge-web.vercel.app' ||
+      origin.startsWith('http://localhost');
+    const onMessage = (e: MessageEvent) => {
+      if (!allowed(e.origin)) return;
+      if (e.data && e.data.type === 'colorshift:next') {
+        navigateTo(photoIndexRef.current + 1);
+      }
+      if (e.data && e.data.type === 'colorshift:expand-controls') {
+        setSlidersExpanded(true);
+        setSliderTarget(e.data.target === 'bg' ? 'bg' : 'fg');
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [navigateTo]);
+
   return (
     <div
       ref={rootRef}
