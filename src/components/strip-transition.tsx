@@ -4,6 +4,7 @@ import { useRef, useEffect, useState, forwardRef, useCallback, type PointerEvent
 import gsap from 'gsap';
 import type { PhotoData } from './control-strip';
 import { TubeText } from './ui/tube-text';
+import { PlusIcon } from './ui/icons';
 
 // DialKit-tuned motion params stored on window by color-shift.tsx
 type PhotoStyle = 'fade' | 'zoom-in' | 'zoom-out' | 'blur' | 'pixelate' | 'slide' | 'scale-fade';
@@ -171,7 +172,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
         {/* Photo panel — tap to open native file picker (photo library / camera on mobile).
             Also supports drag-and-drop of image files on desktop. */}
         <div
-          className="w-full h-1/2 sm:w-1/2 sm:h-full relative overflow-hidden cursor-pointer"
+          className="group/photo w-full h-1/2 sm:w-1/2 sm:h-full relative overflow-hidden cursor-pointer"
           onClick={() => fileInputRef.current?.click()}
           onDragEnter={(e) => {
             if (e.dataTransfer.types.includes('Files')) {
@@ -236,6 +237,20 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
                 <img src={photo.url} alt={photo.alt} className="absolute inset-0 w-full h-full object-cover" />
               </>
             )}
+          </div>
+
+          {/* Hover affordance (MDS 2026-07-06): the whole panel has always
+              been click-to-upload, but nothing signaled it to a mouse user.
+              A centered (+) fades in on hover (hidden mid-drag, where the
+              dashed outline + caption take over). pointer-events-none so
+              the click still lands on the panel itself. */}
+          <div
+            aria-hidden="true"
+            className={`pointer-events-none absolute inset-0 z-10 hidden sm:flex items-center justify-center transition-opacity duration-150 ${isDraggingOver ? 'opacity-0' : 'opacity-0 group-hover/photo:opacity-100'}`}
+          >
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/30 text-white/90 backdrop-blur-[2px] drop-shadow-sm">
+              <PlusIcon className="h-5 w-5" />
+            </span>
           </div>
 
           {/* Bottom-left text — three discrete states stacked in the same slot.
