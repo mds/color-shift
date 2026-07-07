@@ -23,7 +23,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
           ${selected ? 'bg-[#212121]' : 'hover:bg-[#212121]'}
           ${className ?? ''}
         `}
-        style={selected ? { boxShadow: 'inset 0 0 0 1px #393535' } : undefined}
+        style={selected ? { boxShadow: 'inset 0 0 0 1px #322d2d' } : undefined}
       >
         {children}
       </button>

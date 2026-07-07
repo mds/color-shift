@@ -373,7 +373,7 @@ export function ControlContainer({
               }`}
               style={
                 controlsState === 'export'
-                  ? { boxShadow: 'inset 0 0 0 1px #393535' }
+                  ? { boxShadow: 'inset 0 0 0 1px #322d2d' }
                   : undefined
               }
             >

@@ -40,7 +40,7 @@ export function Score({
         ${state === 'default' ? 'hover:bg-[#212121]' : ''}
         ${className ?? ''}
       `}
-      style={isSelected ? { boxShadow: 'inset 0 0 0 1px #393535' } : undefined}
+      style={isSelected ? { boxShadow: 'inset 0 0 0 1px #322d2d' } : undefined}
     >
       <div className="flex items-center justify-center gap-2.5">
         <TubeText

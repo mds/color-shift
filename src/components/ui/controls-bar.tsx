@@ -271,7 +271,7 @@ export function ControlsBar({
               transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-white/30
               ${state === 'export' ? 'bg-[#212121]' : 'hover:bg-[#212121]'}
             `}
-            style={state === 'export' ? { boxShadow: 'inset 0 0 0 1px #393535' } : undefined}
+            style={state === 'export' ? { boxShadow: 'inset 0 0 0 1px #322d2d' } : undefined}
           >
             <TubeText
               text={state === 'export' ? 'CLOSE' : 'EXPORT'}
