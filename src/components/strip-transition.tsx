@@ -4,7 +4,7 @@ import { useRef, useEffect, useState, forwardRef, useCallback, type PointerEvent
 import gsap from 'gsap';
 import type { PhotoData } from './control-strip';
 import { TubeText } from './ui/tube-text';
-import { PlusIcon } from './ui/icons';
+import { PlusIcon, RightArrowIcon } from './ui/icons';
 
 // DialKit-tuned motion params stored on window by color-shift.tsx
 type PhotoStyle = 'fade' | 'zoom-in' | 'zoom-out' | 'blur' | 'pixelate' | 'slide' | 'scale-fade';
@@ -32,10 +32,14 @@ interface StripTransitionProps {
   onSpecimenClick?: () => void;
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
+  /* Embedded (iframe) mode: no upload surface at all. Clicking the
+     photo advances to the next one instead of opening the picker. */
+  embedded?: boolean;
+  onPhotoAdvance?: () => void;
 }
 
 export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
-  ({ photo, bgHex, fgHex, onPhotoFileSelected, onSpecimenClick, onSwipeLeft, onSwipeRight }, ref) => {
+  ({ photo, bgHex, fgHex, onPhotoFileSelected, onSpecimenClick, onSwipeLeft, onSwipeRight, embedded = false, onPhotoAdvance }, ref) => {
 
     const colorRef = useRef<HTMLButtonElement>(null);
     const textRef = useRef<HTMLSpanElement>(null);
@@ -197,17 +201,20 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
         </button>
 
         {/* Photo panel — tap to open native file picker (photo library / camera on mobile).
-            Also supports drag-and-drop of image files on desktop. */}
+            Also supports drag-and-drop of image files on desktop.
+            Embedded mode strips all of that: click advances the photo. */}
         <div
           className="group/photo w-full h-1/2 sm:w-1/2 sm:h-full relative overflow-hidden cursor-pointer"
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => (embedded ? onPhotoAdvance?.() : fileInputRef.current?.click())}
           onDragEnter={(e) => {
+            if (embedded) return;
             if (e.dataTransfer.types.includes('Files')) {
               e.preventDefault();
               setIsDraggingOver(true);
             }
           }}
           onDragOver={(e) => {
+            if (embedded) return;
             if (e.dataTransfer.types.includes('Files')) {
               e.preventDefault();
               e.dataTransfer.dropEffect = 'copy';
@@ -219,6 +226,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
             setIsDraggingOver(false);
           }}
           onDrop={(e) => {
+            if (embedded) return;
             e.preventDefault();
             setIsDraggingOver(false);
             const file = Array.from(e.dataTransfer.files).find((f) =>
@@ -228,17 +236,19 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
           }}
         >
           {/* Hidden file input — iOS shows Photo Library / Take Photo / Choose File */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="sr-only"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) onPhotoFileSelected?.(file);
-              e.target.value = '';
-            }}
-          />
+          {!embedded && (
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) onPhotoFileSelected?.(file);
+                e.target.value = '';
+              }}
+            />
+          )}
 
           {/* Transitioning image layer (scale/blur/etc. happens here).
               On drag-over: scales down to 0.75 and picks up a 1px dashed
@@ -270,13 +280,15 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
               been click-to-upload, but nothing signaled it to a mouse user.
               A centered (+) fades in on hover (hidden mid-drag, where the
               dashed outline + caption take over). pointer-events-none so
-              the click still lands on the panel itself. */}
+              the click still lands on the panel itself.
+              Embedded mode: click means next photo, so the chip shows a
+              right arrow instead of the upload (+). */}
           <div
             aria-hidden="true"
             className={`pointer-events-none absolute inset-0 z-10 hidden sm:flex items-center justify-center transition-opacity duration-150 ${isDraggingOver ? 'opacity-0' : 'opacity-0 group-hover/photo:opacity-100'}`}
           >
             <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0f0e0f] text-white/90">
-              <PlusIcon className="h-5 w-5" />
+              {embedded ? <RightArrowIcon className="h-5 w-5" /> : <PlusIcon className="h-5 w-5" />}
             </span>
           </div>
 

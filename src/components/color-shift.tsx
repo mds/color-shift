@@ -680,6 +680,13 @@ export function ColorShift() {
     return () => window.removeEventListener('keydown', handler);
   }, [navigateTo, injectPhoto, swap, toggleTheme]);
 
+  // ── Embedded (iframe) mode — the photo panel drops its upload surface
+  // and click advances the photo instead. Detected once on mount. ──
+  const [embedded, setEmbedded] = useState(false);
+  useEffect(() => {
+    setEmbedded(window.parent !== window);
+  }, []);
+
   // ── Embed API — the shiftnudge.com /claude embed posts a message when
   // the reader activates the module; advancing one photo makes the app
   // visibly come alive the moment the click-shield drops. Origin-gated
@@ -744,6 +751,8 @@ export function ColorShift() {
           onSpecimenClick={swap}
           onSwipeLeft={() => navigateTo(photoIndex + 1)}
           onSwipeRight={() => navigateTo(photoIndex - 1)}
+          embedded={embedded}
+          onPhotoAdvance={() => navigateTo(photoIndex + 1)}
         />
       </div>
 
