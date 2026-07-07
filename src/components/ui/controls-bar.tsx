@@ -209,7 +209,7 @@ export function ControlsBar({
   }, [state]);
 
   return (
-    <div className={`flex flex-wrap sm:flex-nowrap items-center gap-y-2 sm:gap-y-0 bg-black w-full ${className ?? ''}`}>
+    <div className={`flex flex-wrap sm:flex-nowrap items-center gap-y-2 sm:gap-y-0 bg-[#0f0e0f] w-full ${className ?? ''}`}>
       {/* ── Row 1: Swatches + Arrows + Export ── */}
       <div className="flex items-center w-full sm:w-auto sm:flex-1 min-w-0">
         <Swatches
@@ -269,9 +269,9 @@ export function ControlsBar({
             className={`
               flex items-center justify-center p-2 rounded-lg shrink-0
               transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-white/30
-              ${state === 'export' ? 'bg-[#191919]' : 'hover:bg-[#191919]'}
+              ${state === 'export' ? 'bg-[#212121]' : 'hover:bg-[#212121]'}
             `}
-            style={state === 'export' ? { boxShadow: 'inset 0 0 0 1px #332f2f' } : undefined}
+            style={state === 'export' ? { boxShadow: 'inset 0 0 0 1px #393535' } : undefined}
           >
             <TubeText
               text={state === 'export' ? 'CLOSE' : 'EXPORT'}
@@ -312,7 +312,7 @@ export function ControlsBar({
           ref={algorithmRef}
           type="button"
           onClick={onAlgorithmToggle}
-          className="no-press flex items-center justify-center p-2 rounded-lg shrink-0 transition-colors duration-150 hover:bg-[#191919] outline-none focus-visible:ring-1 focus-visible:ring-white/30"
+          className="no-press flex items-center justify-center p-2 rounded-lg shrink-0 transition-colors duration-150 hover:bg-[#212121] outline-none focus-visible:ring-1 focus-visible:ring-white/30"
         >
           <TubeText
             text={algorithm === 'wcag' ? 'WCAG' : 'APCA'}
@@ -352,9 +352,9 @@ export function ControlsBar({
               className={`
                 flex items-center justify-center p-2 rounded-lg shrink-0
                 transition-colors duration-150
-                ${state === 'export' ? 'bg-[#191919]' : 'hover:bg-[#191919]'}
+                ${state === 'export' ? 'bg-[#212121]' : 'hover:bg-[#212121]'}
               `}
-              style={state === 'export' ? { boxShadow: 'inset 0 0 0 1px #2B2727' } : undefined}
+              style={state === 'export' ? { boxShadow: 'inset 0 0 0 1px #322d2d' } : undefined}
             >
               <TubeText
                 text={state === 'export' ? 'CLOSE' : 'EXPORT'}

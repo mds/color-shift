@@ -128,7 +128,7 @@ export function Controls(props: ControlsProps) {
   const { grade, scoreLabel, gradeDesc } = contrast;
 
   const isDark = theme === 'dark';
-  const chrome = isDark ? 'bg-[#0D0D0D]' : 'bg-[#F0EDE8]';
+  const chrome = isDark ? 'bg-[#181818]' : 'bg-[#F0EDE8]';
   const textMuted = isDark ? 'text-white/45' : 'text-black/45';
   const textValue = isDark ? 'text-white/70' : 'text-black/70';
   const hoverBg = isDark ? 'hover:bg-white/[0.06]' : 'hover:bg-black/[0.04]';

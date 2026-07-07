@@ -275,7 +275,7 @@ export function ControlStrip(props: ControlStripProps) {
 
   const isDark = theme === "dark";
   const chrome = isDark
-    ? "bg-[#0D0D0D]/90 backdrop-blur-xl"
+    ? "bg-[#181818]/90 backdrop-blur-xl"
     : "bg-[#F0EDE8]/90 backdrop-blur-xl";
   const textMuted = isDark ? "text-white/40" : "text-black/40";
   const hoverBg = isDark ? "hover:bg-white/[0.06]" : "hover:bg-black/[0.04]";

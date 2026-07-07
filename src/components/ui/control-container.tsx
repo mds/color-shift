@@ -191,7 +191,7 @@ export function ControlContainer({
 
   return (
     <div
-      className={`bg-black w-full shrink-0 overflow-visible ${className ?? ''}`}
+      className={`bg-[#0f0e0f] w-full shrink-0 overflow-visible ${className ?? ''}`}
     >
       {/* ──────────────── DESKTOP (sm+) — unchanged ──────────────── */}
       <div className="hidden sm:flex sm:flex-col sm:p-2 sm:w-full sm:overflow-visible">
@@ -369,11 +369,11 @@ export function ControlContainer({
               type="button"
               onClick={controlsState === 'score' ? onAlgorithmToggle : onExportToggle}
               className={`flex items-center justify-center p-2 rounded-lg shrink-0 transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-white/30 ${
-                controlsState === 'export' ? 'bg-[#191919]' : 'hover:bg-[#191919]'
+                controlsState === 'export' ? 'bg-[#212121]' : 'hover:bg-[#212121]'
               }`}
               style={
                 controlsState === 'export'
-                  ? { boxShadow: 'inset 0 0 0 1px #332f2f' }
+                  ? { boxShadow: 'inset 0 0 0 1px #393535' }
                   : undefined
               }
             >

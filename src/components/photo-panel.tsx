@@ -205,7 +205,7 @@ export function PhotoPanel({ buffer, currentIndex, onIndexChange }: PhotoPanelPr
   }, []);
 
   return (
-    <div ref={containerRef} className="relative h-full overflow-hidden" style={{ backgroundColor: displayedPhoto?.color ?? '#000' }}>
+    <div ref={containerRef} className="relative h-full overflow-hidden" style={{ backgroundColor: displayedPhoto?.color ?? '#0f0e0f' }}>
       {displayedPhoto && (
         <img src={displayedPhoto.tinyUrl} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
       )}

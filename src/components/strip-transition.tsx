@@ -248,7 +248,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
             aria-hidden="true"
             className={`pointer-events-none absolute inset-0 z-10 hidden sm:flex items-center justify-center transition-opacity duration-150 ${isDraggingOver ? 'opacity-0' : 'opacity-0 group-hover/photo:opacity-100'}`}
           >
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-white/90">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0f0e0f] text-white/90">
               <PlusIcon className="h-5 w-5" />
             </span>
           </div>

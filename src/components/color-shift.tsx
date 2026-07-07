@@ -731,7 +731,7 @@ export function ColorShift() {
       ref={rootRef}
       className={`h-screen flex flex-col transition-opacity duration-700 ${isReady ? 'opacity-100' : 'opacity-0'}`}
       data-theme={theme}
-      style={{ backgroundColor: '#000' }}
+      style={{ backgroundColor: '#0f0e0f' }}
     >
       {/* Color + Photo display */}
       <div className="flex-1 min-h-0 overflow-hidden">

@@ -79,7 +79,7 @@ export default function RootLayout({
         {/* Mobile Safari top chrome — color-shift.tsx removes this and
             re-appends on every bgHex change, since Safari ignores
             setAttribute updates on an existing theme-color meta. */}
-        <meta name="theme-color" content="#000000" />
+        <meta name="theme-color" content="#0f0e0f" />
       </head>
       <body>
         {children}

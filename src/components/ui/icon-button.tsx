@@ -20,10 +20,10 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
         className={`
           flex items-center justify-center px-1 py-0.5 rounded-lg shrink-0
           transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-white/30
-          ${selected ? 'bg-[#191919]' : 'hover:bg-[#191919]'}
+          ${selected ? 'bg-[#212121]' : 'hover:bg-[#212121]'}
           ${className ?? ''}
         `}
-        style={selected ? { boxShadow: 'inset 0 0 0 1px #332f2f' } : undefined}
+        style={selected ? { boxShadow: 'inset 0 0 0 1px #393535' } : undefined}
       >
         {children}
       </button>

@@ -45,12 +45,12 @@ export function CSButton({
       className={`
         flex items-center justify-center gap-2 p-2 rounded-lg shrink-0
         transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-white/30
-        ${isSelected ? 'bg-[#191919]' : ''}
-        ${state === 'hover' ? 'bg-[#191919]' : ''}
-        ${state === 'default' ? 'hover:bg-[#191919]' : ''}
+        ${isSelected ? 'bg-[#212121]' : ''}
+        ${state === 'hover' ? 'bg-[#212121]' : ''}
+        ${state === 'default' ? 'hover:bg-[#212121]' : ''}
         ${className ?? ''}
       `}
-      style={isSelected ? { boxShadow: 'inset 0 0 0 1px #332f2f' } : undefined}
+      style={isSelected ? { boxShadow: 'inset 0 0 0 1px #393535' } : undefined}
     >
       {swatchColor && <Swatch color={swatchColor} />}
       {animated ? (
