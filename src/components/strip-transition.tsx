@@ -90,15 +90,29 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       onSpecimenClick?.();
     }, [onSpecimenClick]);
 
+    // Grab-and-slide: the photo layer follows a horizontal drag (damped),
+    // then commits past the threshold — RTL advances, LTR goes back — or
+    // springs home. Works for mouse, pen, and touch alike.
+    const DRAG_DAMPING = 0.35;
+    const COMMIT_PX = 48;
+
+    const springHome = useCallback(() => {
+      const el = photoContainerRef.current;
+      if (el) gsap.to(el, { x: 0, duration: 0.35, ease: 'power3.out', overwrite: true });
+    }, []);
+
     const handlePointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
-      if (event.pointerType !== 'touch' || !event.isPrimary) return;
+      if (!event.isPrimary) return;
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
       swipeStartRef.current = {
         x: event.clientX,
         y: event.clientY,
         pointerId: event.pointerId,
         didSwipe: false,
       };
-      event.currentTarget.setPointerCapture?.(event.pointerId);
+      // Capture happens on drag intent (in move), not here: capturing on
+      // down retargets the follow-up click to this root div in Chrome,
+      // which would break the photo panel's click-to-upload.
     }, []);
 
     const handlePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
@@ -106,9 +120,15 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       if (!start || start.pointerId !== event.pointerId) return;
       const dx = event.clientX - start.x;
       const dy = event.clientY - start.y;
-      if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      if (!start.didSwipe && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.5) {
         start.didSwipe = true;
         event.preventDefault();
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        if (event.pointerType === 'mouse') document.body.style.cursor = 'grabbing';
+      }
+      if (start.didSwipe) {
+        const el = photoContainerRef.current;
+        if (el) gsap.set(el, { x: dx * DRAG_DAMPING });
       }
     }, []);
 
@@ -116,19 +136,26 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       const start = swipeStartRef.current;
       if (!start || start.pointerId !== event.pointerId) return;
       const dx = event.clientX - start.x;
-      const dy = event.clientY - start.y;
       swipeStartRef.current = null;
+      document.body.style.cursor = '';
 
-      if (!start.didSwipe || Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-
+      if (!start.didSwipe) return;
       suppressClickRef.current = true;
-      if (dx < 0) onSwipeLeft?.();
-      else onSwipeRight?.();
-    }, [onSwipeLeft, onSwipeRight]);
+
+      if (Math.abs(dx) >= COMMIT_PX) {
+        if (dx < 0) onSwipeLeft?.();
+        else onSwipeRight?.();
+      }
+      // Spring home either way; a committed photo change overwrites this
+      // with its own enter transition (all styles reset x).
+      springHome();
+    }, [onSwipeLeft, onSwipeRight, springHome]);
 
     const handlePointerCancel = useCallback(() => {
       swipeStartRef.current = null;
-    }, []);
+      document.body.style.cursor = '';
+      springHome();
+    }, [springHome]);
 
     const suppressClickAfterSwipe = useCallback((event: MouseEvent<HTMLDivElement>) => {
       if (!suppressClickRef.current) return;
@@ -140,7 +167,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
     return (
       <div
         ref={ref}
-        className="relative w-full h-full overflow-hidden flex flex-col sm:flex-row"
+        className="relative w-full h-full overflow-hidden flex flex-col sm:flex-row select-none"
         style={{ touchAction: 'pan-y' }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -233,8 +260,8 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
           >
             {photo && (
               <>
-                <img src={photo.tinyUrl} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
-                <img src={photo.url} alt={photo.alt} className="absolute inset-0 w-full h-full object-cover" />
+                <img src={photo.tinyUrl} alt="" draggable={false} className="absolute inset-0 w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
+                <img src={photo.url} alt={photo.alt} draggable={false} className="absolute inset-0 w-full h-full object-cover" />
               </>
             )}
           </div>
