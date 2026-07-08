@@ -52,14 +52,8 @@ const inputMono = localFont({
 });
 
 // Absolute base for OG/Twitter image URLs (crawlers need absolute URLs).
-// Prefers an explicit site URL, then the Vercel deployment URL, then local.
-const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  (process.env.VERCEL_PROJECT_PRODUCTION_URL
-    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:3987");
+// The project is served at labs.shiftnudge.com/color-shift.
+const SITE_URL = "https://labs.shiftnudge.com";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
