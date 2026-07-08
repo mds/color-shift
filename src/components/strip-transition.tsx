@@ -434,7 +434,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
               'text-white/70 text-[10px] font-mono drop-shadow-sm';
             return (
               <div
-                className="absolute bottom-3 left-4 right-3 z-10"
+                className="absolute bottom-3 left-4 right-6 z-10 text-right"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="relative">
