@@ -400,6 +400,7 @@ export function ColorShift() {
     const linkedAlgorithm = normalizeAlgorithmParam(params.get('algo'));
     const linkedText = params.get('text');
     if (linkedText) setSpecimenText(linkedText);
+    setLighterAsBg(params.get('swap') === '1');
     const linkedPhoto = linkedPhotoId ? await fetchPhotoById(linkedPhotoId) : null;
     const randomPhotos = await fetchPhotos(linkedPhoto ? 9 : 10);
     const photos = linkedPhoto
@@ -538,10 +539,13 @@ export function ColorShift() {
     params.set('bg', bg.hex.replace('#', '').toUpperCase());
     params.set('fg', fg.hex.replace('#', '').toUpperCase());
     params.set('algo', contrastAlgorithm === 'APCA' ? 'apca' : 'wcag');
+    // Carry the swap/polarity state, else applyPolarity re-normalizes the
+    // loaded pair and can flip a swapped link back on open.
+    if (lighterAsBg) params.set('swap', '1');
     // Carry the custom specimen text (skip the default "Aa" to keep links clean).
     if (specimenText && specimenText !== 'Aa') params.set('text', specimenText);
     return params;
-  }, [bg.hex, fg.hex, contrastAlgorithm, photoData, specimenText]);
+  }, [bg.hex, fg.hex, contrastAlgorithm, photoData, specimenText, lighterAsBg]);
 
   const getShareUrl = useCallback(() => {
     const params = buildShareParams();
