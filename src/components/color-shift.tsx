@@ -136,6 +136,8 @@ export function ColorShift() {
 
   // ── Specimen text (editable "Aa" over the color panel) ──
   const [specimenText, setSpecimenText] = useState('Aa');
+  // Fixed specimen font-size in px from ?size=NN (embed param); null = auto-fit.
+  const [fixedFontSize, setFixedFontSize] = useState<number | null>(null);
 
   // ── Photo state ──
   const [photoBuffer, setPhotoBuffer] = useState<PhotoData[]>([]);
@@ -400,6 +402,8 @@ export function ColorShift() {
     const linkedAlgorithm = normalizeAlgorithmParam(params.get('algo'));
     const linkedText = params.get('text');
     if (linkedText) setSpecimenText(linkedText);
+    const linkedSize = Number.parseInt(params.get('size') ?? '', 10);
+    if (Number.isFinite(linkedSize) && linkedSize > 0) setFixedFontSize(linkedSize);
     setLighterAsBg(params.get('swap') === '1');
     const linkedPhoto = linkedPhotoId ? await fetchPhotoById(linkedPhotoId) : null;
     const randomPhotos = await fetchPhotos(linkedPhoto ? 9 : 10);
@@ -800,6 +804,7 @@ export function ColorShift() {
           nextFgHex={nextColors?.fg}
           specimenText={specimenText}
           onSpecimenTextChange={setSpecimenText}
+          fontSizePx={fixedFontSize ?? undefined}
           onSwap={swap}
           onPhotoFileSelected={injectPhotoFromFile}
           embedded={embedded}

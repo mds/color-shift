@@ -28,6 +28,9 @@ interface StripTransitionProps {
   /* Editable specimen text shown over the color panel. */
   specimenText: string;
   onSpecimenTextChange: (text: string) => void;
+  /* Fixed specimen font-size in px (embed param). When set, overrides the
+     auto-fit and pins the text to this size. */
+  fontSizePx?: number;
   /* Swap fg/bg — the color panel's click action (double-click edits text). */
   onSwap?: () => void;
   onPhotoFileSelected?: (file: File) => void;
@@ -46,7 +49,7 @@ export interface StripHandle {
 }
 
 export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
-  ({ photo, prevPhoto, nextPhoto, bgHex, fgHex, prevBgHex, nextBgHex, prevFgHex, nextFgHex, specimenText, onSpecimenTextChange, onSwap, onPhotoFileSelected, embedded = false, displayMode = false, onPhotoAdvance, onPhotoPrevious }, ref) => {
+  ({ photo, prevPhoto, nextPhoto, bgHex, fgHex, prevBgHex, nextBgHex, prevFgHex, nextFgHex, specimenText, onSpecimenTextChange, fontSizePx, onSwap, onPhotoFileSelected, embedded = false, displayMode = false, onPhotoAdvance, onPhotoPrevious }, ref) => {
 
     const colorRef = useRef<HTMLDivElement>(null);
     const textRef = useRef<HTMLSpanElement>(null);
@@ -83,8 +86,10 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
       const panel = colorRef.current;
       if (!el || !panel) return;
       const availW = Math.max(0, panel.clientWidth - 48);
-      const availH = Math.max(0, panel.clientHeight - 48);
       el.style.width = `${availW}px`;
+      // Embed override: pin to a fixed px size and skip the auto-fit.
+      if (fontSizePx && fontSizePx > 0) { el.style.fontSize = `${fontSizePx}px`; return; }
+      const availH = Math.max(0, panel.clientHeight - 48);
       let lo = 16, hi = 200, best = 16;
       for (let i = 0; i < 9; i++) {
         const mid = (lo + hi) / 2;
@@ -93,7 +98,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
         else { hi = mid; }
       }
       el.style.fontSize = `${best}px`;
-    }, []);
+    }, [fontSizePx]);
 
     // Keep the contentEditable specimen in sync with state, but only write to
     // the DOM when it actually differs (e.g. restored from a URL) so typing
@@ -291,6 +296,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
             aria-label="Specimen text"
             spellCheck={false}
             onInput={(e) => onSpecimenTextChange(e.currentTarget.textContent ?? '')}
+            onBlur={() => { if (!(textRef.current?.textContent ?? '').trim()) onSpecimenTextChange('Aa'); }}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
