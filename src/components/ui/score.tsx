@@ -35,12 +35,12 @@ export function Score({
       className={`
         flex items-center justify-center p-2 rounded-[4px] shrink-0
         transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-white/30
-        ${state === 'selected' ? 'bg-[#212121]' : ''}
-        ${state === 'hovered' ? 'bg-[#212121]' : ''}
-        ${state === 'default' ? 'hover:bg-[#212121]' : ''}
+        ${state === 'selected' ? 'bg-[var(--cs-surface-raised)]' : ''}
+        ${state === 'hovered' ? 'bg-[var(--cs-surface-raised)]' : ''}
+        ${state === 'default' ? 'hover:bg-[var(--cs-surface-raised)]' : ''}
         ${className ?? ''}
       `}
-      style={isSelected ? { boxShadow: 'inset 0 0 0 1px #322d2d' } : undefined}
+      style={isSelected ? { boxShadow: 'inset 0 0 0 1px var(--cs-stroke)' } : undefined}
     >
       <div className="flex items-center justify-center gap-2.5">
         <TubeText

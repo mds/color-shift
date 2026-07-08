@@ -1,54 +1,58 @@
 'use client';
 
-import { useRef, useEffect, useState, forwardRef, useCallback, type PointerEvent, type MouseEvent } from 'react';
+import { useRef, useEffect, useLayoutEffect, useState, forwardRef, useImperativeHandle, useCallback, type PointerEvent, type MouseEvent } from 'react';
 import gsap from 'gsap';
+
+// useLayoutEffect on the client (runs before paint, so the incoming photo is
+// positioned off-screen before it can flash at rest), plain effect on the
+// server to avoid the SSR warning.
+const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 import type { PhotoData } from './control-strip';
 import { TubeText } from './ui/tube-text';
-import { PlusIcon, RightArrowIcon } from './ui/icons';
-
-// DialKit-tuned motion params stored on window by color-shift.tsx
-type PhotoStyle = 'fade' | 'zoom-in' | 'zoom-out' | 'blur' | 'pixelate' | 'slide' | 'scale-fade';
-type MotionParams = {
-  hover: { scale: number; duration: number; ease: string; navPulseScale: number; navPulseDuration: number };
-  click: { duration: number; ease: string };
-  photo: { style: PhotoStyle; startOpacity: number; startScale: number; duration: number; ease: string };
-};
-
-function getMotionParams(): MotionParams {
-  const fallback: MotionParams = {
-    hover: { scale: 1.05, duration: 1, ease: 'power4.out', navPulseScale: 1.01, navPulseDuration: 0.4 },
-    click: { duration: 0.3, ease: 'power4.out' },
-    photo: { style: 'fade', startOpacity: 0, startScale: 1.05, duration: 1, ease: 'power4.out' },
-  };
-  if (typeof window === 'undefined') return fallback;
-  return (window as unknown as { __motion?: MotionParams }).__motion ?? fallback;
-}
+import { RightArrowIcon, LeftArrowIcon } from './ui/icons';
 
 interface StripTransitionProps {
   photo: PhotoData | null;
+  /* The immediate neighbors, rendered flanking the current photo so a drag
+     reveals them live (a connected filmstrip). */
+  prevPhoto?: PhotoData | null;
+  nextPhoto?: PhotoData | null;
   bgHex: string;
   fgHex: string;
+  /* Neighbor bg colors, so the color panel can blend from the current bg
+     toward the incoming one as the filmstrip slides. */
+  prevBgHex?: string;
+  nextBgHex?: string;
+  /* Editable specimen text shown over the color panel. */
+  specimenText: string;
+  onSpecimenTextChange: (text: string) => void;
   onPhotoFileSelected?: (file: File) => void;
-  onSpecimenClick?: () => void;
-  onSwipeLeft?: () => void;
-  onSwipeRight?: () => void;
-  /* Embedded (iframe) mode: no upload surface at all. Clicking the
-     photo advances to the next one instead of opening the picker. */
   embedded?: boolean;
   onPhotoAdvance?: () => void;
+  onPhotoPrevious?: () => void;
 }
 
-export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
-  ({ photo, bgHex, fgHex, onPhotoFileSelected, onSpecimenClick, onSwipeLeft, onSwipeRight, embedded = false, onPhotoAdvance }, ref) => {
+// Imperative handle so sibling controls (the control-panel arrows) can drive
+// the exact same filmstrip transition as the photo panel's own arrows / drag.
+export interface StripHandle {
+  next: () => void;
+  prev: () => void;
+}
 
-    const colorRef = useRef<HTMLButtonElement>(null);
-    const textRef = useRef<HTMLSpanElement>(null);
-    const photoContainerRef = useRef<HTMLDivElement>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
+export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
+  ({ photo, prevPhoto, nextPhoto, bgHex, fgHex, prevBgHex, nextBgHex, specimenText, onSpecimenTextChange, onPhotoFileSelected, embedded = false, onPhotoAdvance, onPhotoPrevious }, ref) => {
+
+    const colorRef = useRef<HTMLDivElement>(null);
+    const textRef = useRef<HTMLInputElement>(null);
+    // The filmstrip track holding [prev, current, next], centered on the
+    // middle slide (xPercent -100). Both drag and arrow drive this one el.
+    const trackRef = useRef<HTMLDivElement>(null);
     const [isDraggingOver, setIsDraggingOver] = useState(false);
-    const prevPhotoId = useRef<string | null>(null);
-    const swipeStartRef = useRef<{ x: number; y: number; pointerId: number; didSwipe: boolean } | null>(null);
+    const currentPhotoId = useRef<string | null>(null);
+    const swipeStartRef = useRef<{ x: number; y: number; pointerId: number; didSwipe: boolean; width: number } | null>(null);
     const suppressClickRef = useRef(false);
+    // True while a commit tween is playing, to reject re-entrant navigation.
+    const animatingRef = useRef(false);
 
     // Ease background color + text/fill colors
     useEffect(() => {
@@ -60,63 +64,78 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       }
     }, [bgHex, fgHex]);
 
-    // Photo transition — multiple styles selectable via DialKit
-    useEffect(() => {
+    // Filmstrip recenter. The track holds [prev, current, next] and rests
+    // centered on the middle slide (xPercent -100). Whenever the current
+    // photo changes — after a commit tween settles on a neighbor slot, the
+    // parent swaps in the new current — this snaps the track back to center
+    // BEFORE paint, so the just-revealed photo stays put and the loop reads
+    // as one continuous strip. useIsoLayoutEffect (pre-paint) is what makes
+    // the snap invisible.
+    useIsoLayoutEffect(() => {
       if (!photo) return;
-      if (photo.id === prevPhotoId.current) return;
-      prevPhotoId.current = photo.id;
-      const el = photoContainerRef.current;
-      if (!el) return;
-
-      const { photo: p } = getMotionParams();
-      const t = { duration: p.duration, ease: p.ease, overwrite: true as const };
-
-      switch (p.style) {
-        case 'fade':
-        case 'zoom-in':
-        case 'zoom-out':
-        case 'scale-fade':
-          gsap.fromTo(el, { opacity: p.startOpacity, scale: p.startScale, filter: 'none', x: 0 }, { opacity: 1, scale: 1, ...t });
-          break;
-        case 'blur':
-          gsap.fromTo(el, { opacity: p.startOpacity, scale: p.startScale, filter: 'blur(20px)', x: 0 }, { opacity: 1, scale: 1, filter: 'blur(0px)', ...t });
-          break;
-        case 'pixelate':
-          gsap.fromTo(el, { opacity: p.startOpacity, scale: p.startScale, filter: 'contrast(1.5) blur(8px) saturate(1.3)', x: 0 }, { opacity: 1, scale: 1, filter: 'contrast(1) blur(0px) saturate(1)', ...t });
-          break;
-        case 'slide':
-          gsap.fromTo(el, { opacity: p.startOpacity, scale: p.startScale, filter: 'none', x: '30%' }, { opacity: 1, scale: 1, x: '0%', ...t });
-          break;
-      }
+      if (photo.id === currentPhotoId.current) return;
+      currentPhotoId.current = photo.id;
+      const track = trackRef.current;
+      if (track) gsap.set(track, { xPercent: -100, x: 0 });
+      animatingRef.current = false;
     }, [photo]);
 
-    const handleSpecimenClick = useCallback(() => {
-      onSpecimenClick?.();
-    }, [onSpecimenClick]);
+    // One shared motion path for both the arrow chips and a committed drag:
+    // slide the track to the neighbor slot, then hand the change to the
+    // parent (the recenter effect snaps back). Guarded on neighbor presence
+    // and on an in-flight tween.
+    const SLIDE_TWEEN = { duration: 0.5, ease: 'power3.inOut' as const };
+    const animateToNeighbor = useCallback((dir: 'next' | 'prev') => {
+      const track = trackRef.current;
+      if (!track || animatingRef.current) return;
+      if (dir === 'next' && !nextPhoto) return;
+      if (dir === 'prev' && !prevPhoto) return;
+      animatingRef.current = true;
+      // Blend the color panel bg toward the incoming photo's bg in lockstep
+      // with the slide (same duration/ease), so the color crossfades as the
+      // photo travels.
+      const targetBg = dir === 'next' ? nextBgHex : prevBgHex;
+      if (colorRef.current && targetBg) {
+        gsap.to(colorRef.current, { backgroundColor: targetBg, ...SLIDE_TWEEN, overwrite: true });
+      }
+      gsap.to(track, {
+        xPercent: dir === 'next' ? -200 : 0,
+        x: 0,
+        ...SLIDE_TWEEN,
+        overwrite: true,
+        onComplete: () => { if (dir === 'next') onPhotoAdvance?.(); else onPhotoPrevious?.(); },
+      });
+    }, [nextPhoto, prevPhoto, nextBgHex, prevBgHex, onPhotoAdvance, onPhotoPrevious]);
 
-    // Grab-and-slide: the photo layer follows a horizontal drag (damped),
-    // then commits past the threshold — RTL advances, LTR goes back — or
-    // springs home. Works for mouse, pen, and touch alike.
-    const DRAG_DAMPING = 0.35;
-    const COMMIT_PX = 48;
+    const snapCenter = useCallback(() => {
+      const track = trackRef.current;
+      if (track) gsap.to(track, { x: 0, ...SLIDE_TWEEN, overwrite: true });
+      // Return the bg to the current photo's color if a partial drag nudged it.
+      if (colorRef.current) gsap.to(colorRef.current, { backgroundColor: bgHex, ...SLIDE_TWEEN, overwrite: true });
+    }, [bgHex]);
 
-    const springHome = useCallback(() => {
-      const el = photoContainerRef.current;
-      if (el) gsap.to(el, { x: 0, duration: 0.35, ease: 'power3.out', overwrite: true });
-    }, []);
+    useImperativeHandle(ref, () => ({
+      next: () => animateToNeighbor('next'),
+      prev: () => animateToNeighbor('prev'),
+    }), [animateToNeighbor]);
 
+    // Grab-and-slide the filmstrip: the track follows the pointer 1:1 (clamped
+    // to one neighbor), then past 20% of the panel it commits via the same
+    // animateToNeighbor path the arrows use; otherwise it snaps back.
     const handlePointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
       if (!event.isPrimary) return;
       if (event.pointerType === 'mouse' && event.button !== 0) return;
+      if (animatingRef.current) return;
+      const track = trackRef.current;
       swipeStartRef.current = {
         x: event.clientX,
         y: event.clientY,
         pointerId: event.pointerId,
         didSwipe: false,
+        width: track ? track.offsetWidth : 1,
       };
       // Capture happens on drag intent (in move), not here: capturing on
-      // down retargets the follow-up click to this root div in Chrome,
-      // which would break the photo panel's click-to-upload.
+      // down retargets the follow-up click to this root div in Chrome.
     }, []);
 
     const handlePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
@@ -126,15 +145,29 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       const dy = event.clientY - start.y;
       if (!start.didSwipe && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.5) {
         start.didSwipe = true;
-        event.preventDefault();
         event.currentTarget.setPointerCapture?.(event.pointerId);
         if (event.pointerType === 'mouse') document.body.style.cursor = 'grabbing';
       }
       if (start.didSwipe) {
-        const el = photoContainerRef.current;
-        if (el) gsap.set(el, { x: dx * DRAG_DAMPING });
+        event.preventDefault();
+        const track = trackRef.current;
+        if (!track) return;
+        // 1:1 follow, clamped to a single neighbor; block dragging toward an
+        // edge with no neighbor so the strip never pulls off into a gap.
+        let d = dx;
+        if (d < 0 && !nextPhoto) d = 0;
+        if (d > 0 && !prevPhoto) d = 0;
+        d = Math.max(-start.width, Math.min(start.width, d));
+        gsap.set(track, { x: d });
+        // Blend the color panel bg toward the neighbor by drag progress, so
+        // the color tracks the photo live under the finger.
+        const targetBg = d < 0 ? nextBgHex : d > 0 ? prevBgHex : null;
+        if (colorRef.current && targetBg) {
+          const progress = Math.min(Math.abs(d) / start.width, 1);
+          gsap.set(colorRef.current, { backgroundColor: gsap.utils.interpolate(bgHex, targetBg, progress) });
+        }
       }
-    }, []);
+    }, [nextPhoto, prevPhoto, nextBgHex, prevBgHex, bgHex]);
 
     const handlePointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
       const start = swipeStartRef.current;
@@ -146,20 +179,17 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
       if (!start.didSwipe) return;
       suppressClickRef.current = true;
 
-      if (Math.abs(dx) >= COMMIT_PX) {
-        if (dx < 0) onSwipeLeft?.();
-        else onSwipeRight?.();
-      }
-      // Spring home either way; a committed photo change overwrites this
-      // with its own enter transition (all styles reset x).
-      springHome();
-    }, [onSwipeLeft, onSwipeRight, springHome]);
+      const threshold = start.width * 0.2;
+      if (dx <= -threshold && nextPhoto) animateToNeighbor('next');
+      else if (dx >= threshold && prevPhoto) animateToNeighbor('prev');
+      else snapCenter();
+    }, [nextPhoto, prevPhoto, animateToNeighbor, snapCenter]);
 
     const handlePointerCancel = useCallback(() => {
       swipeStartRef.current = null;
       document.body.style.cursor = '';
-      springHome();
-    }, [springHome]);
+      snapCenter();
+    }, [snapCenter]);
 
     const suppressClickAfterSwipe = useCallback((event: MouseEvent<HTMLDivElement>) => {
       if (!suppressClickRef.current) return;
@@ -170,7 +200,6 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
 
     return (
       <div
-        ref={ref}
         className="relative w-full h-full overflow-hidden flex flex-col sm:flex-row select-none"
         style={{ touchAction: 'pan-y' }}
         onPointerDown={handlePointerDown}
@@ -179,33 +208,39 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
         onPointerCancel={handlePointerCancel}
         onClickCapture={suppressClickAfterSwipe}
       >
-        {/* Color panel */}
-        <button
-          type="button"
+        {/* Color panel — editable specimen text over the current bg. Only the
+            text scales on press (the panel itself does not). Swap fg/bg lives
+            in the control bar and on the "s" key. */}
+        <div
           ref={colorRef}
-          className="group w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative select-none z-10 cursor-pointer border-0 p-0 text-center outline-none focus-visible:ring-2 focus-visible:ring-white/35 focus-visible:ring-inset"
-          aria-label="Swap foreground and background colors"
+          className="w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative z-10"
           style={{ backgroundColor: bgHex, containerType: 'size' }}
-          onClick={handleSpecimenClick}
         >
-          <span
+          <input
             ref={textRef}
-            className="absolute text-[80px] sm:text-[120px] md:text-[160px] lg:text-[200px] leading-[1] tracking-tight select-none transition-transform duration-100 ease-out will-change-transform group-hover:scale-[1.03] group-active:scale-[0.97]"
+            type="text"
+            value={specimenText}
+            onChange={(e) => onSpecimenTextChange(e.target.value)}
+            placeholder="Aa"
+            spellCheck={false}
+            autoComplete="off"
+            aria-label="Specimen text"
+            className="select-text bg-transparent border-none outline-none text-center w-full px-8 text-[80px] sm:text-[120px] md:text-[160px] lg:text-[200px] leading-[1] tracking-tight transition-transform duration-100 ease-out will-change-transform active:scale-[0.97]"
             style={{
               color: fgHex,
+              caretColor: fgHex,
               fontFamily: "'Instrument Serif', serif",
             }}
-          >
-            Aa
-          </span>
-        </button>
+          />
+        </div>
 
-        {/* Photo panel — tap to open native file picker (photo library / camera on mobile).
-            Also supports drag-and-drop of image files on desktop.
-            Embedded mode strips all of that: click advances the photo. */}
+        {/* Photo panel — the default interaction is navigation: a click (or
+            the right chip) advances, the left chip goes back, and a horizontal
+            drag scrubs the filmstrip. Standalone also accepts image files via
+            drag-and-drop for a custom photo. */}
         <div
           className="group/photo w-full h-1/2 sm:w-1/2 sm:h-full relative overflow-hidden cursor-pointer"
-          onClick={() => (embedded ? onPhotoAdvance?.() : fileInputRef.current?.click())}
+          onClick={() => animateToNeighbor('next')}
           onDragEnter={(e) => {
             if (embedded) return;
             if (e.dataTransfer.types.includes('Files')) {
@@ -235,61 +270,63 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
             if (file) onPhotoFileSelected?.(file);
           }}
         >
-          {/* Hidden file input — iOS shows Photo Library / Take Photo / Choose File */}
-          {!embedded && (
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="sr-only"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) onPhotoFileSelected?.(file);
-                e.target.value = '';
-              }}
+          {/* Filmstrip track — [prev, current, next] laid out side by side and
+              resting centered on the middle slide (xPercent -100, set by the
+              recenter effect). A drag moves it 1:1 so the neighbor is already
+              in view; the arrows / a committed drag animate it to a neighbor
+              slot, then the recenter snaps it back once the parent swaps the
+              current photo. Keys are fixed slot names so React updates srcs in
+              place rather than remounting, keeping the loop seamless. */}
+          <div ref={trackRef} className="absolute inset-0 flex" style={{ willChange: 'transform', transform: 'translateX(-100%)' }}>
+            {[
+              { p: prevPhoto ?? null, k: 'slot-prev' },
+              { p: photo, k: 'slot-cur' },
+              { p: nextPhoto ?? null, k: 'slot-next' },
+            ].map(({ p, k }) => (
+              <div key={k} className="relative w-full h-full shrink-0 overflow-hidden">
+                {p && (
+                  <>
+                    <img src={p.tinyUrl} alt="" draggable={false} className="absolute inset-0 w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
+                    <img src={p.url} alt={p.alt} draggable={false} className="absolute inset-0 w-full h-full object-cover" />
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Drag-over (file upload) affordance — a 1px dashed outline over the
+              panel while an image file is dragged in (standalone only). */}
+          {isDraggingOver && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 z-10"
+              style={{ outline: '1px dashed rgba(255,255,255,0.6)', outlineOffset: '-1px' }}
             />
           )}
 
-          {/* Transitioning image layer (scale/blur/etc. happens here).
-              On drag-over: scales down to 0.75 and picks up a 1px dashed
-              border that shrinks with it. */}
+          {/* Hover affordance — the default photo interaction is navigation:
+              real prev / next chips pinned 16px off each edge (left goes back,
+              right advances). Each stops propagation so the panel's own
+              next-click does not double-fire. Hidden mid file-drag. */}
           <div
-            ref={photoContainerRef}
-            className="absolute inset-0"
-            style={{
-              transform: isDraggingOver ? 'scale(0.9)' : 'scale(1)',
-              transformOrigin: 'center center',
-              transition:
-                'transform 150ms cubic-bezier(0.33,1,0.68,1), outline-color 150ms linear',
-              outline: '1px dashed rgba(255,255,255,0.6)',
-              outlineOffset: '-1px',
-              outlineColor: isDraggingOver
-                ? 'rgba(255,255,255,0.6)'
-                : 'rgba(255,255,255,0)',
-            }}
+            className={`pointer-events-none absolute inset-0 z-10 hidden sm:block transition-opacity duration-150 ${isDraggingOver ? 'opacity-0' : 'opacity-0 group-hover/photo:opacity-100'}`}
           >
-            {photo && (
-              <>
-                <img src={photo.tinyUrl} alt="" draggable={false} className="absolute inset-0 w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
-                <img src={photo.url} alt={photo.alt} draggable={false} className="absolute inset-0 w-full h-full object-cover" />
-              </>
-            )}
-          </div>
-
-          {/* Hover affordance (MDS 2026-07-06): the whole panel has always
-              been click-to-upload, but nothing signaled it to a mouse user.
-              A centered (+) fades in on hover (hidden mid-drag, where the
-              dashed outline + caption take over). pointer-events-none so
-              the click still lands on the panel itself.
-              Embedded mode: click means next photo, so the chip shows a
-              right arrow instead of the upload (+). */}
-          <div
-            aria-hidden="true"
-            className={`pointer-events-none absolute inset-0 z-10 hidden sm:flex items-center justify-center transition-opacity duration-150 ${isDraggingOver ? 'opacity-0' : 'opacity-0 group-hover/photo:opacity-100'}`}
-          >
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0f0e0f] text-white/90">
-              {embedded ? <RightArrowIcon className="h-5 w-5" /> : <PlusIcon className="h-5 w-5" />}
-            </span>
+            <button
+              type="button"
+              aria-label="Previous photo"
+              onClick={(e) => { e.stopPropagation(); animateToNeighbor('prev'); }}
+              className="pointer-events-auto absolute left-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-[4px] bg-[var(--cs-canvas)] text-white/90"
+            >
+              <LeftArrowIcon className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              aria-label="Next photo"
+              onClick={(e) => { e.stopPropagation(); animateToNeighbor('next'); }}
+              className="pointer-events-auto absolute right-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-[4px] bg-[var(--cs-canvas)] text-white/90"
+            >
+              <RightArrowIcon className="h-5 w-5" />
+            </button>
           </div>
 
           {/* Bottom-left text — three discrete states stacked in the same slot.

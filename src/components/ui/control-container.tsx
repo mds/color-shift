@@ -191,10 +191,10 @@ export function ControlContainer({
 
   return (
     <div
-      className={`bg-[#0f0e0f] w-full shrink-0 overflow-visible ${className ?? ''}`}
+      className={`bg-[var(--cs-canvas)] w-full shrink-0 overflow-visible ${className ?? ''}`}
     >
       {/* ──────────────── DESKTOP (sm+) — unchanged ──────────────── */}
-      <div className="hidden sm:flex sm:flex-col sm:p-2 sm:w-full sm:overflow-visible">
+      <div className="hidden sm:flex sm:flex-col sm:p-4 sm:w-full sm:overflow-visible">
         {/* Slider panel — always mounted, animated with CSS grid rows + transform */}
         <div
           className="grid overflow-visible"
@@ -369,11 +369,11 @@ export function ControlContainer({
               type="button"
               onClick={controlsState === 'score' ? onAlgorithmToggle : onExportToggle}
               className={`flex items-center justify-center p-2 rounded-[4px] shrink-0 transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-white/30 ${
-                controlsState === 'export' ? 'bg-[#212121]' : 'hover:bg-[#212121]'
+                controlsState === 'export' ? 'bg-[var(--cs-surface-raised)]' : 'hover:bg-[var(--cs-surface-raised)]'
               }`}
               style={
                 controlsState === 'export'
-                  ? { boxShadow: 'inset 0 0 0 1px #322d2d' }
+                  ? { boxShadow: 'inset 0 0 0 1px var(--cs-stroke)' }
                   : undefined
               }
             >

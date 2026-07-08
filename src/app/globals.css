@@ -13,6 +13,17 @@
     --exit-duration: 0.25;
     --enter-duration: 0.35;
     --enter-overshoot: 1.4;
+
+    /* ── Chrome tokens ──────────────────────────────────────────────
+       Mirror shiftnudge's dark scale so the two apps share a vocabulary.
+       canvas / surface / stroke / border alias shiftnudge --dark100 /
+       --dark200 / --dark400 / --dark-border exactly; surface-raised is the
+       one extra step (hover / selected fill) shiftnudge's scale lacks. */
+    --cs-canvas: #0f0e0f;         /* shiftnudge --dark100 / --dark-canvas */
+    --cs-surface: #1a1718;        /* shiftnudge --dark200 */
+    --cs-surface-raised: #212121; /* color-shift-only hover / selected fill */
+    --cs-stroke: #303030;         /* shiftnudge --dark400 */
+    --cs-border: #1b191a;         /* shiftnudge --dark-border */
 }
 
 /* ── Tailwind v4 Theme Tokens ─────────────────────────────────────── */
@@ -39,7 +50,7 @@ body {
    reads dark (matching the dock), while the top bar samples the color
    panel's bgHex for a tinted address bar. Requires viewport-fit=cover. */
 html {
-    background: #0f0e0f;
+    background: var(--cs-canvas);
 }
 
 /* ── Button Press (squish → pop → settle) ────────────────────────── */

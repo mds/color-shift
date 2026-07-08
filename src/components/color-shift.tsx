@@ -26,7 +26,7 @@ import {
   type VibrantPalette,
 } from '@/lib/color-engine';
 import type { PhotoData } from './control-strip';
-import { StripTransition } from './strip-transition';
+import { StripTransition, type StripHandle } from './strip-transition';
 import { getFontForPhoto } from '@/lib/fonts';
 import { ControlContainer } from './ui/control-container';
 
@@ -134,6 +134,9 @@ export function ColorShift() {
   const [sliderTarget, setSliderTarget] = useState<'bg' | 'fg'>('bg');
   const [exportFeedback, setExportFeedback] = useState<'url' | 'params' | 'markdown' | null>(null);
 
+  // ── Specimen text (editable "Aa" over the color panel) ──
+  const [specimenText, setSpecimenText] = useState('Aa');
+
   // ── Photo state ──
   const [photoBuffer, setPhotoBuffer] = useState<PhotoData[]>([]);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -151,6 +154,11 @@ export function ColorShift() {
   // Polarity preference: false = darker goes to bg (default), true = lighter goes to bg
   const [lighterAsBg, setLighterAsBg] = useState(false);
   const photoData = photoBuffer[photoIndex] ?? null;
+  // Neighbors for the filmstrip — wrap around the buffer; null when there is
+  // no distinct neighbor (buffer of one) so the strip clamps at that edge.
+  const len = photoBuffer.length;
+  const prevPhotoData = len > 1 ? photoBuffer[((photoIndex - 1) % len + len) % len] ?? null : null;
+  const nextPhotoData = len > 1 ? photoBuffer[(photoIndex + 1) % len] ?? null : null;
 
   // ── Derive colors for current photo ──
   const getColorsForPhoto = useCallback((photo: PhotoData | null): PhotoColors => {
@@ -165,6 +173,18 @@ export function ColorShift() {
     const base = manualColors ?? getColorsForPhoto(photoData);
     return applyPolarity(base, lighterAsBg);
   }, [photoData, manualColors, getColorsForPhoto, lighterAsBg]);
+
+  // Neighbor bg colors so the color panel can blend toward the incoming photo
+  // during a slide. Derived (no manual override) since only the current photo
+  // carries manual color edits.
+  const prevColors = useMemo(
+    () => (prevPhotoData ? applyPolarity(getColorsForPhoto(prevPhotoData), lighterAsBg) : null),
+    [prevPhotoData, getColorsForPhoto, lighterAsBg],
+  );
+  const nextColors = useMemo(
+    () => (nextPhotoData ? applyPolarity(getColorsForPhoto(nextPhotoData), lighterAsBg) : null),
+    [nextPhotoData, getColorsForPhoto, lighterAsBg],
+  );
 
   const bgHex = colors.bg;
   const fgHex = colors.fg;
@@ -259,7 +279,7 @@ export function ColorShift() {
     root.style.setProperty('--cb-ease', EASE_TO_CB[controlBar.ease] ?? 'cubic-bezier(0.33, 1, 0.68, 1)');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [motionParams]);
-  const stripRef = useRef<HTMLDivElement>(null);
+  const stripRef = useRef<StripHandle>(null);
   const preloadedImages = useRef<Set<HTMLImageElement>>(new Set());
 
   // ── Derived ──
@@ -669,16 +689,17 @@ export function ColorShift() {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT') return;
-      const idx = photoIndexRef.current;
-      if (e.key === 'ArrowRight') { e.preventDefault(); navigateTo(idx + 1); }
-      if (e.key === 'ArrowLeft') { e.preventDefault(); navigateTo(idx - 1); }
+      // Arrows drive the one filmstrip transition (via the strip handle), the
+      // same path the on-photo arrows, drag, and control-bar arrows use.
+      if (e.key === 'ArrowRight') { e.preventDefault(); stripRef.current?.next(); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); stripRef.current?.prev(); }
       if (e.code === 'Space') { e.preventDefault(); injectPhoto(); }
       if ((e.key === 's' || e.key === 'S') && !e.metaKey && !e.ctrlKey) { e.preventDefault(); swap(); }
       if ((e.key === 't' || e.key === 'T') && !e.metaKey && !e.ctrlKey) { e.preventDefault(); toggleTheme(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [navigateTo, injectPhoto, swap, toggleTheme]);
+  }, [injectPhoto, swap, toggleTheme]);
 
   // ── Embedded (iframe) mode — the photo panel drops its upload surface
   // and click advances the photo instead. Detected once on mount. ──
@@ -700,7 +721,7 @@ export function ColorShift() {
     const onMessage = (e: MessageEvent) => {
       if (!allowed(e.origin)) return;
       if (e.data && e.data.type === 'colorshift:next') {
-        navigateTo(photoIndexRef.current + 1);
+        stripRef.current?.next();
       }
       if (e.data && e.data.type === 'colorshift:expand-controls') {
         setSlidersExpanded(true);
@@ -709,7 +730,7 @@ export function ColorShift() {
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [navigateTo]);
+  }, []);
 
   // ── Embed API, outbound — when embedded, report the FIRST real user
   // interaction to the parent so it can stop any ambient choreography
@@ -738,21 +759,25 @@ export function ColorShift() {
       ref={rootRef}
       className={`h-screen flex flex-col transition-opacity duration-700 ${isReady ? 'opacity-100' : 'opacity-0'}`}
       data-theme={theme}
-      style={{ backgroundColor: '#0f0e0f' }}
+      style={{ backgroundColor: 'var(--cs-canvas)' }}
     >
       {/* Color + Photo display */}
       <div className="flex-1 min-h-0 overflow-hidden">
         <StripTransition
           ref={stripRef}
           photo={photoData}
+          prevPhoto={prevPhotoData}
+          nextPhoto={nextPhotoData}
           bgHex={bgHex}
           fgHex={fgHex}
+          prevBgHex={prevColors?.bg}
+          nextBgHex={nextColors?.bg}
+          specimenText={specimenText}
+          onSpecimenTextChange={setSpecimenText}
           onPhotoFileSelected={injectPhotoFromFile}
-          onSpecimenClick={swap}
-          onSwipeLeft={() => navigateTo(photoIndex + 1)}
-          onSwipeRight={() => navigateTo(photoIndex - 1)}
           embedded={embedded}
           onPhotoAdvance={() => navigateTo(photoIndex + 1)}
+          onPhotoPrevious={() => navigateTo(photoIndex - 1)}
         />
       </div>
 
@@ -808,8 +833,8 @@ export function ColorShift() {
         onResultsToggle={() => setControlsState(s => s === 'score' ? 'default' : 'score')}
         onAlgorithmToggle={toggleContrastAlgorithm}
         onThresholdSelect={bumpTo}
-        onLeftArrow={() => navigateTo(photoIndex - 1)}
-        onRightArrow={() => navigateTo(photoIndex + 1)}
+        onLeftArrow={() => stripRef.current?.prev()}
+        onRightArrow={() => stripRef.current?.next()}
         onExportToggle={() => setControlsState(s => s === 'export' ? 'default' : 'export')}
         exportFeedback={exportFeedback}
         onCopyUrl={copyShareUrl}
