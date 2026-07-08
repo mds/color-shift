@@ -64,8 +64,11 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
     const currentPhotoId = useRef<string | null>(null);
     const swipeStartRef = useRef<{ x: number; y: number; pointerId: number; didSwipe: boolean; width: number } | null>(null);
     const suppressClickRef = useRef(false);
-    // True while a commit tween is playing, to reject re-entrant navigation.
+    // True while a drag-commit tween is playing, to reject a new drag.
     const animatingRef = useRef(false);
+    // Direction of a tap-driven commit, consumed by the recenter effect to
+    // play the slide (taps commit immediately so they can fire mid-transition).
+    const pendingDirRef = useRef<'next' | 'prev' | null>(null);
 
     // Ease background color + text/fill colors
     useEffect(() => {
@@ -118,27 +121,54 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
       return () => ro.disconnect();
     }, [fitText]);
 
+    const SLIDE_TWEEN = { duration: 0.5, ease: 'power3.inOut' as const };
+
     // Filmstrip recenter. The track holds [prev, current, next] and rests
-    // centered on the middle slide (xPercent -100). Whenever the current
-    // photo changes — after a commit tween settles on a neighbor slot, the
-    // parent swaps in the new current — this snaps the track back to center
-    // BEFORE paint, so the just-revealed photo stays put and the loop reads
-    // as one continuous strip. useIsoLayoutEffect (pre-paint) is what makes
-    // the snap invisible.
+    // centered on the middle slide (xPercent -100). When the current photo
+    // changes this runs BEFORE paint (useIsoLayoutEffect):
+    //  - Drag commit (no pending dir): the track already slid to the neighbor
+    //    slot, so we snap to center invisibly (the revealed photo stays put).
+    //  - Tap commit (pendingDir set): the commit happened up front, so we
+    //    place the just-shown photo at the edge and slide it to center here —
+    //    which is what lets taps fire mid-transition and stack.
     useIsoLayoutEffect(() => {
       if (!photo) return;
       if (photo.id === currentPhotoId.current) return;
       currentPhotoId.current = photo.id;
       const track = trackRef.current;
-      if (track) gsap.set(track, { xPercent: -100, x: 0 });
+      const dir = pendingDirRef.current;
+      pendingDirRef.current = null;
+      if (track) {
+        if (dir === 'next') {
+          // old current is now slot 0; show it, then slide left to the new one.
+          gsap.set(track, { xPercent: 0, x: 0 });
+          gsap.to(track, { xPercent: -100, ...SLIDE_TWEEN, overwrite: true });
+        } else if (dir === 'prev') {
+          gsap.set(track, { xPercent: -200, x: 0 });
+          gsap.to(track, { xPercent: -100, ...SLIDE_TWEEN, overwrite: true });
+        } else {
+          gsap.set(track, { xPercent: -100, x: 0 });
+        }
+      }
       animatingRef.current = false;
     }, [photo]);
 
-    // One shared motion path for both the arrow chips and a committed drag:
-    // slide the track to the neighbor slot, then hand the change to the
-    // parent (the recenter effect snaps back). Guarded on neighbor presence
-    // and on an in-flight tween.
-    const SLIDE_TWEEN = { duration: 0.5, ease: 'power3.inOut' as const };
+    // Tap-to-navigate (arrow chips, control-bar arrows, keyboard, panel click).
+    // Commits the photo change immediately and tags the direction, so it can
+    // fire during an in-flight transition and rapid taps stack into next-next.
+    const tapNeighbor = useCallback((dir: 'next' | 'prev') => {
+      if (dir === 'next' && !nextPhoto) return;
+      if (dir === 'prev' && !prevPhoto) return;
+      // Cancel any in-flight commit tween so it can't also advance.
+      if (trackRef.current) gsap.killTweensOf(trackRef.current);
+      animatingRef.current = false;
+      pendingDirRef.current = dir;
+      if (dir === 'next') onPhotoAdvance?.(); else onPhotoPrevious?.();
+    }, [nextPhoto, prevPhoto, onPhotoAdvance, onPhotoPrevious]);
+
+    // Continuous drag commit: slide the track to the neighbor slot, then hand
+    // the change to the parent in onComplete (the recenter snaps back). Kept
+    // separate from taps so the drag can continue from its current position.
     const animateToNeighbor = useCallback((dir: 'next' | 'prev') => {
       const track = trackRef.current;
       if (!track || animatingRef.current) return;
@@ -174,9 +204,9 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
     }, [bgHex, fgHex]);
 
     useImperativeHandle(ref, () => ({
-      next: () => animateToNeighbor('next'),
-      prev: () => animateToNeighbor('prev'),
-    }), [animateToNeighbor]);
+      next: () => tapNeighbor('next'),
+      prev: () => tapNeighbor('prev'),
+    }), [tapNeighbor]);
 
     // Grab-and-slide the filmstrip: the track follows the pointer 1:1 (clamped
     // to one neighbor), then past 20% of the panel it commits via the same
@@ -317,7 +347,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
             drag-and-drop for a custom photo. */}
         <div
           className="group/photo w-full h-1/2 sm:w-1/2 sm:h-full relative overflow-hidden cursor-pointer"
-          onClick={() => animateToNeighbor('next')}
+          onClick={() => tapNeighbor('next')}
           onDragEnter={(e) => {
             if (embedded) return;
             if (e.dataTransfer.types.includes('Files')) {
@@ -431,7 +461,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
           <button
             type="button"
             aria-label="Previous photo"
-            onClick={(e) => { e.stopPropagation(); animateToNeighbor('prev'); }}
+            onClick={(e) => { e.stopPropagation(); tapNeighbor('prev'); }}
             className="pointer-events-auto absolute left-4 sm:left-[calc(50%+1rem)] top-[calc(50%+1rem)] translate-y-0 sm:top-1/2 sm:-translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-[4px] bg-[var(--cs-canvas)] text-white/90"
           >
             <LeftArrowIcon className="h-5 w-5" />
@@ -439,7 +469,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
           <button
             type="button"
             aria-label="Next photo"
-            onClick={(e) => { e.stopPropagation(); animateToNeighbor('next'); }}
+            onClick={(e) => { e.stopPropagation(); tapNeighbor('next'); }}
             className="pointer-events-auto absolute right-4 top-[calc(50%+1rem)] translate-y-0 sm:top-1/2 sm:-translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-[4px] bg-[var(--cs-canvas)] text-white/90"
           >
             <RightArrowIcon className="h-5 w-5" />
