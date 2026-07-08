@@ -226,7 +226,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
             input is click-through until editing so the panel owns the click. */}
         <div
           ref={colorRef}
-          className={`w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative z-10 ${isEditing ? 'cursor-text' : 'cursor-pointer'}`}
+          className={`group/color w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative z-10 ${isEditing ? 'cursor-text' : 'cursor-pointer'}`}
           style={{ backgroundColor: bgHex, containerType: 'size' }}
           onClick={() => { if (!isEditing) onSwap?.(); }}
           onDoubleClick={() => setIsEditing(true)}
@@ -244,7 +244,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
             spellCheck={false}
             autoComplete="off"
             aria-label="Specimen text"
-            className={`bg-transparent border-none outline-none text-center w-full px-8 text-[80px] sm:text-[120px] md:text-[160px] lg:text-[200px] leading-[1] tracking-tight transition-transform duration-100 ease-out will-change-transform active:scale-[0.97] ${isEditing ? 'select-text pointer-events-auto cursor-text' : 'select-none pointer-events-none'}`}
+            className={`bg-transparent border-none outline-none text-center w-full px-8 text-[80px] sm:text-[120px] md:text-[160px] lg:text-[200px] leading-[1] tracking-tight transition-transform duration-100 ease-out will-change-transform group-active/color:scale-[0.97] ${isEditing ? 'select-text pointer-events-auto cursor-text' : 'select-none pointer-events-none'}`}
             style={{
               color: fgHex,
               caretColor: fgHex,
@@ -359,10 +359,12 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
           })()}
         </div>
 
-        {/* Prev / next chips — pinned 16px off the left and right edges of the
-            WHOLE strip, so they split across the color panel (left) and the
-            photo panel (right). Always visible on mobile (no hover), hover-
-            revealed on desktop. Each stops propagation so the click drives
+        {/* Prev / next chips. On mobile they sit near the TOP of the photo (the
+            bottom panel): 16px below its top edge, at the far left and right,
+            always visible. On desktop (side-by-side) they stay within the photo
+            panel as before: the left chip at the photo panel's left edge (strip
+            midpoint + 16px), the right at the far right, vertically centered and
+            hover-revealed. Each stops propagation so the click drives
             navigation, not the panel underneath. */}
         <div
           className={`pointer-events-none absolute inset-0 z-30 transition-opacity duration-150 ${isDraggingOver ? 'opacity-0' : 'opacity-100 sm:opacity-0 sm:group-hover/strip:opacity-100'}`}
@@ -371,7 +373,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
             type="button"
             aria-label="Previous photo"
             onClick={(e) => { e.stopPropagation(); animateToNeighbor('prev'); }}
-            className="pointer-events-auto absolute left-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-[4px] bg-[var(--cs-canvas)] text-white/90"
+            className="pointer-events-auto absolute left-4 sm:left-[calc(50%+1rem)] top-[calc(50%+1rem)] translate-y-0 sm:top-1/2 sm:-translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-[4px] bg-[var(--cs-canvas)] text-white/90"
           >
             <LeftArrowIcon className="h-5 w-5" />
           </button>
@@ -379,7 +381,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
             type="button"
             aria-label="Next photo"
             onClick={(e) => { e.stopPropagation(); animateToNeighbor('next'); }}
-            className="pointer-events-auto absolute right-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-[4px] bg-[var(--cs-canvas)] text-white/90"
+            className="pointer-events-auto absolute right-4 top-[calc(50%+1rem)] translate-y-0 sm:top-1/2 sm:-translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-[4px] bg-[var(--cs-canvas)] text-white/90"
           >
             <RightArrowIcon className="h-5 w-5" />
           </button>

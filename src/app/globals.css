@@ -44,6 +44,14 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
+/* Nothing in the app is user-selectable (it is a tool, not a document).
+   The one exception is an actively-editing text field, which opts back in
+   via Tailwind's select-text where needed. */
+body {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
 /* Mobile Safari chrome sampling:
    iOS Safari 15+ tints its top and bottom UI bars by sampling the page
    background at those edges. Near-black on html ensures the bottom tab bar
