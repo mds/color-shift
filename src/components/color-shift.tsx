@@ -733,6 +733,7 @@ export function ColorShift() {
     const allowed = (origin: string) =>
       origin === 'https://shiftnudge.com' ||
       origin === 'https://www.shiftnudge.com' ||
+      origin === 'https://labs.shiftnudge.com' ||
       origin === 'https://shiftnudge-web.vercel.app' ||
       origin.startsWith('http://localhost');
     const onMessage = (e: MessageEvent) => {
@@ -743,6 +744,12 @@ export function ColorShift() {
       if (e.data && e.data.type === 'colorshift:expand-controls') {
         setSlidersExpanded(true);
         setSliderTarget(e.data.target === 'bg' ? 'bg' : 'fg');
+      }
+      // Parent toggles user input on/off at runtime: enabled=false locks the
+      // embed into the controls-free display (no nav/edit/swap/drag/keyboard),
+      // enabled=true restores the interactive app.
+      if (e.data && e.data.type === 'colorshift:set-interactive') {
+        setDisplayMode(!e.data.enabled);
       }
     };
     window.addEventListener('message', onMessage);
