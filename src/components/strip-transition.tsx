@@ -26,6 +26,8 @@ interface StripTransitionProps {
   /* Editable specimen text shown over the color panel. */
   specimenText: string;
   onSpecimenTextChange: (text: string) => void;
+  /* Swap fg/bg — the color panel's click action (double-click edits text). */
+  onSwap?: () => void;
   onPhotoFileSelected?: (file: File) => void;
   embedded?: boolean;
   onPhotoAdvance?: () => void;
@@ -40,7 +42,7 @@ export interface StripHandle {
 }
 
 export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
-  ({ photo, prevPhoto, nextPhoto, bgHex, fgHex, prevBgHex, nextBgHex, specimenText, onSpecimenTextChange, onPhotoFileSelected, embedded = false, onPhotoAdvance, onPhotoPrevious }, ref) => {
+  ({ photo, prevPhoto, nextPhoto, bgHex, fgHex, prevBgHex, nextBgHex, specimenText, onSpecimenTextChange, onSwap, onPhotoFileSelected, embedded = false, onPhotoAdvance, onPhotoPrevious }, ref) => {
 
     const colorRef = useRef<HTMLDivElement>(null);
     const textRef = useRef<HTMLInputElement>(null);
@@ -48,6 +50,8 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
     // middle slide (xPercent -100). Both drag and arrow drive this one el.
     const trackRef = useRef<HTMLDivElement>(null);
     const [isDraggingOver, setIsDraggingOver] = useState(false);
+    // Color panel: single click swaps fg/bg, double click edits the specimen.
+    const [isEditing, setIsEditing] = useState(false);
     const currentPhotoId = useRef<string | null>(null);
     const swipeStartRef = useRef<{ x: number; y: number; pointerId: number; didSwipe: boolean; width: number } | null>(null);
     const suppressClickRef = useRef(false);
@@ -63,6 +67,15 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
         gsap.to(textRef.current, { color: fgHex, duration: 0.4, ease: 'power2.out', overwrite: 'auto' });
       }
     }, [bgHex, fgHex]);
+
+    // Enter edit mode → focus the specimen input (and select all for a quick
+    // overwrite). Exit is on blur.
+    useEffect(() => {
+      if (isEditing && textRef.current) {
+        textRef.current.focus();
+        textRef.current.select();
+      }
+    }, [isEditing]);
 
     // Filmstrip recenter. The track holds [prev, current, next] and rests
     // centered on the middle slide (xPercent -100). Whenever the current
@@ -200,7 +213,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
 
     return (
       <div
-        className="relative w-full h-full overflow-hidden flex flex-col sm:flex-row select-none"
+        className="group/strip relative w-full h-full overflow-hidden flex flex-col sm:flex-row select-none"
         style={{ touchAction: 'pan-y' }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -208,24 +221,30 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
         onPointerCancel={handlePointerCancel}
         onClickCapture={suppressClickAfterSwipe}
       >
-        {/* Color panel — editable specimen text over the current bg. Only the
-            text scales on press (the panel itself does not). Swap fg/bg lives
-            in the control bar and on the "s" key. */}
+        {/* Color panel — single click swaps fg/bg, double click edits the
+            specimen text. Only the text scales on press, not the panel. The
+            input is click-through until editing so the panel owns the click. */}
         <div
           ref={colorRef}
-          className="w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative z-10"
+          className={`w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative z-10 ${isEditing ? 'cursor-text' : 'cursor-pointer'}`}
           style={{ backgroundColor: bgHex, containerType: 'size' }}
+          onClick={() => { if (!isEditing) onSwap?.(); }}
+          onDoubleClick={() => setIsEditing(true)}
         >
           <input
             ref={textRef}
             type="text"
             value={specimenText}
             onChange={(e) => onSpecimenTextChange(e.target.value)}
+            onBlur={() => setIsEditing(false)}
+            onClick={(e) => { if (isEditing) e.stopPropagation(); }}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') textRef.current?.blur(); }}
+            readOnly={!isEditing}
             placeholder="Aa"
             spellCheck={false}
             autoComplete="off"
             aria-label="Specimen text"
-            className="select-text bg-transparent border-none outline-none text-center w-full px-8 text-[80px] sm:text-[120px] md:text-[160px] lg:text-[200px] leading-[1] tracking-tight transition-transform duration-100 ease-out will-change-transform active:scale-[0.97]"
+            className={`bg-transparent border-none outline-none text-center w-full px-8 text-[80px] sm:text-[120px] md:text-[160px] lg:text-[200px] leading-[1] tracking-tight transition-transform duration-100 ease-out will-change-transform active:scale-[0.97] ${isEditing ? 'select-text pointer-events-auto cursor-text' : 'select-none pointer-events-none'}`}
             style={{
               color: fgHex,
               caretColor: fgHex,
@@ -304,31 +323,6 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
             />
           )}
 
-          {/* Hover affordance — the default photo interaction is navigation:
-              real prev / next chips pinned 16px off each edge (left goes back,
-              right advances). Each stops propagation so the panel's own
-              next-click does not double-fire. Hidden mid file-drag. */}
-          <div
-            className={`pointer-events-none absolute inset-0 z-10 hidden sm:block transition-opacity duration-150 ${isDraggingOver ? 'opacity-0' : 'opacity-0 group-hover/photo:opacity-100'}`}
-          >
-            <button
-              type="button"
-              aria-label="Previous photo"
-              onClick={(e) => { e.stopPropagation(); animateToNeighbor('prev'); }}
-              className="pointer-events-auto absolute left-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-[4px] bg-[var(--cs-canvas)] text-white/90"
-            >
-              <LeftArrowIcon className="h-5 w-5" />
-            </button>
-            <button
-              type="button"
-              aria-label="Next photo"
-              onClick={(e) => { e.stopPropagation(); animateToNeighbor('next'); }}
-              className="pointer-events-auto absolute right-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-[4px] bg-[var(--cs-canvas)] text-white/90"
-            >
-              <RightArrowIcon className="h-5 w-5" />
-            </button>
-          </div>
-
           {/* Bottom-left text — three discrete states stacked in the same slot.
               Each is its own persistent TubeText. Only the active state holds
               its real string; the inactive ones hold '', so state transitions
@@ -363,6 +357,32 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
               </div>
             );
           })()}
+        </div>
+
+        {/* Prev / next chips — pinned 16px off the left and right edges of the
+            WHOLE strip, so they split across the color panel (left) and the
+            photo panel (right). Always visible on mobile (no hover), hover-
+            revealed on desktop. Each stops propagation so the click drives
+            navigation, not the panel underneath. */}
+        <div
+          className={`pointer-events-none absolute inset-0 z-30 transition-opacity duration-150 ${isDraggingOver ? 'opacity-0' : 'opacity-100 sm:opacity-0 sm:group-hover/strip:opacity-100'}`}
+        >
+          <button
+            type="button"
+            aria-label="Previous photo"
+            onClick={(e) => { e.stopPropagation(); animateToNeighbor('prev'); }}
+            className="pointer-events-auto absolute left-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-[4px] bg-[var(--cs-canvas)] text-white/90"
+          >
+            <LeftArrowIcon className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            aria-label="Next photo"
+            onClick={(e) => { e.stopPropagation(); animateToNeighbor('next'); }}
+            className="pointer-events-auto absolute right-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-[4px] bg-[var(--cs-canvas)] text-white/90"
+          >
+            <RightArrowIcon className="h-5 w-5" />
+          </button>
         </div>
       </div>
     );

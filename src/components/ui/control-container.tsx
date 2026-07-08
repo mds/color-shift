@@ -21,7 +21,7 @@ import { CSButton } from './cs-button';
 import { IconButton } from './icon-button';
 import { Score } from './score';
 import { TubeText } from './tube-text';
-import { LeftArrowIcon, RightArrowIcon, SwapArrowsIcon } from './icons';
+import { SwapArrowsIcon } from './icons';
 
 type SliderMode = 'OKLCH' | 'HSB' | 'RGB';
 
@@ -390,16 +390,9 @@ export function ControlContainer({
           </div>
         </div>
 
-        {/* Photo nav — pinned to bottom of mobile dock, always visible.
-            File picker lives on the photo itself (strip-transition.tsx). */}
-        <div className="flex items-center justify-between pt-3">
-          <IconButton onClick={onLeftArrow}>
-            <LeftArrowIcon className="size-[30px] text-[#a39f9f]" />
-          </IconButton>
-          <IconButton onClick={onRightArrow}>
-            <RightArrowIcon className="size-[30px] text-[#a39f9f]" />
-          </IconButton>
-        </div>
+        {/* Mobile photo nav lives on the strip itself now (the prev/next chips
+            split across the color + photo panels in strip-transition.tsx), so
+            the dock no longer carries its own bottom arrows. */}
       </div>
     </div>
   );

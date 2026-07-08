@@ -398,6 +398,8 @@ export function ColorShift() {
     const linkedBg = normalizeHexParam(params.get('bg'));
     const linkedFg = normalizeHexParam(params.get('fg'));
     const linkedAlgorithm = normalizeAlgorithmParam(params.get('algo'));
+    const linkedText = params.get('text');
+    if (linkedText) setSpecimenText(linkedText);
     const linkedPhoto = linkedPhotoId ? await fetchPhotoById(linkedPhotoId) : null;
     const randomPhotos = await fetchPhotos(linkedPhoto ? 9 : 10);
     const photos = linkedPhoto
@@ -536,8 +538,10 @@ export function ColorShift() {
     params.set('bg', bg.hex.replace('#', '').toUpperCase());
     params.set('fg', fg.hex.replace('#', '').toUpperCase());
     params.set('algo', contrastAlgorithm === 'APCA' ? 'apca' : 'wcag');
+    // Carry the custom specimen text (skip the default "Aa" to keep links clean).
+    if (specimenText && specimenText !== 'Aa') params.set('text', specimenText);
     return params;
-  }, [bg.hex, fg.hex, contrastAlgorithm, photoData]);
+  }, [bg.hex, fg.hex, contrastAlgorithm, photoData, specimenText]);
 
   const getShareUrl = useCallback(() => {
     const params = buildShareParams();
@@ -774,6 +778,7 @@ export function ColorShift() {
           nextBgHex={nextColors?.bg}
           specimenText={specimenText}
           onSpecimenTextChange={setSpecimenText}
+          onSwap={swap}
           onPhotoFileSelected={injectPhotoFromFile}
           embedded={embedded}
           onPhotoAdvance={() => navigateTo(photoIndex + 1)}
