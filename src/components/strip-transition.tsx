@@ -70,13 +70,20 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
     // play the slide (taps commit immediately so they can fire mid-transition).
     const pendingDirRef = useRef<'next' | 'prev' | null>(null);
 
-    // Ease background color + text/fill colors
+    // Ease the color panel bg + specimen fg toward the current pair. gsap owns
+    // these colors (they are NOT set inline) so a photo change crossfades
+    // instead of snapping — the specimen commits the photo immediately, and an
+    // inline style would jump the color before this ease could run. First run
+    // applies instantly (no load fade-in); later changes ease over the slide.
+    const colorInitRef = useRef(false);
     useEffect(() => {
+      const duration = colorInitRef.current ? 0.5 : 0;
+      colorInitRef.current = true;
       if (colorRef.current) {
-        gsap.to(colorRef.current, { backgroundColor: bgHex, duration: 0.4, ease: 'power2.out', overwrite: true });
+        gsap.to(colorRef.current, { backgroundColor: bgHex, duration, ease: 'power2.out', overwrite: true });
       }
       if (textRef.current) {
-        gsap.to(textRef.current, { color: fgHex, duration: 0.4, ease: 'power2.out', overwrite: 'auto' });
+        gsap.to(textRef.current, { color: fgHex, duration, ease: 'power2.out', overwrite: 'auto' });
       }
     }, [bgHex, fgHex]);
 
@@ -312,7 +319,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
         <div
           ref={colorRef}
           className={`w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative z-10 ${displayMode ? '' : 'cursor-pointer'}`}
-          style={{ backgroundColor: bgHex, containerType: 'size' }}
+          style={{ containerType: 'size' }}
           onClick={() => { if (!displayMode) onSwap?.(); }}
           onPointerDown={() => { if (!displayMode) setPanelPressed(true); }}
           onPointerUp={() => setPanelPressed(false)}
@@ -332,7 +339,8 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
             className={`specimen-text block outline-none text-center break-words leading-[1.05] tracking-tight transition-transform duration-100 ease-out will-change-transform ${displayMode ? 'select-none pointer-events-none' : 'select-text cursor-text'} ${panelPressed ? 'scale-[0.97]' : ''}`}
             style={{
-              color: fgHex,
+              // color is driven by gsap (see the color-ease effect) so photo
+              // changes crossfade instead of snapping; only the caret is inline.
               caretColor: fgHex,
               fontFamily: "'Instrument Serif', serif",
               // Text selection tint = fg at 20% (8-digit hex alpha 0x33 ≈ 20%).
