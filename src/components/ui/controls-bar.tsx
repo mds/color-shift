@@ -267,7 +267,7 @@ export function ControlsBar({
             type="button"
             onClick={onExportToggle}
             className={`
-              flex items-center justify-center p-2 rounded-lg shrink-0
+              flex items-center justify-center p-2 rounded-[4px] shrink-0
               transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-white/30
               ${state === 'export' ? 'bg-[#212121]' : 'hover:bg-[#212121]'}
             `}
@@ -312,7 +312,7 @@ export function ControlsBar({
           ref={algorithmRef}
           type="button"
           onClick={onAlgorithmToggle}
-          className="no-press flex items-center justify-center p-2 rounded-lg shrink-0 transition-colors duration-150 hover:bg-[#212121] outline-none focus-visible:ring-1 focus-visible:ring-white/30"
+          className="no-press flex items-center justify-center p-2 rounded-[4px] shrink-0 transition-colors duration-150 hover:bg-[#212121] outline-none focus-visible:ring-1 focus-visible:ring-white/30"
         >
           <TubeText
             text={algorithm === 'wcag' ? 'WCAG' : 'APCA'}
@@ -350,7 +350,7 @@ export function ControlsBar({
               type="button"
               onClick={onExportToggle}
               className={`
-                flex items-center justify-center p-2 rounded-lg shrink-0
+                flex items-center justify-center p-2 rounded-[4px] shrink-0
                 transition-colors duration-150
                 ${state === 'export' ? 'bg-[#212121]' : 'hover:bg-[#212121]'}
               `}

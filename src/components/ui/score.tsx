@@ -33,7 +33,7 @@ export function Score({
       type="button"
       onClick={onClick}
       className={`
-        flex items-center justify-center p-2 rounded-lg shrink-0
+        flex items-center justify-center p-2 rounded-[4px] shrink-0
         transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-white/30
         ${state === 'selected' ? 'bg-[#212121]' : ''}
         ${state === 'hovered' ? 'bg-[#212121]' : ''}

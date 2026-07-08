@@ -368,7 +368,7 @@ export function ControlContainer({
             <button
               type="button"
               onClick={controlsState === 'score' ? onAlgorithmToggle : onExportToggle}
-              className={`flex items-center justify-center p-2 rounded-lg shrink-0 transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-white/30 ${
+              className={`flex items-center justify-center p-2 rounded-[4px] shrink-0 transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-white/30 ${
                 controlsState === 'export' ? 'bg-[#212121]' : 'hover:bg-[#212121]'
               }`}
               style={

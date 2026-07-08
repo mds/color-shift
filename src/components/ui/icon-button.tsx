@@ -18,7 +18,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
         type="button"
         onClick={onClick}
         className={`
-          flex items-center justify-center px-1 py-0.5 rounded-lg shrink-0
+          flex items-center justify-center px-1 py-0.5 rounded-[4px] shrink-0
           transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-white/30
           ${selected ? 'bg-[#212121]' : 'hover:bg-[#212121]'}
           ${className ?? ''}
