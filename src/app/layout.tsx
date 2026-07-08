@@ -51,7 +51,18 @@ const inputMono = localFont({
   display: 'swap',
 });
 
+// Absolute base for OG/Twitter image URLs (crawlers need absolute URLs).
+// Prefers an explicit site URL, then the Vercel deployment URL, then local.
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : "http://localhost:3987");
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "Color Shift",
   description: "Two colors. Background and foreground. See the contrast. Feel the combination.",
 };
