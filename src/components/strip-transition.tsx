@@ -183,7 +183,7 @@ export const StripTransition = forwardRef<HTMLDivElement, StripTransitionProps>(
         <button
           type="button"
           ref={colorRef}
-          className="color-panel group w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative select-none z-10 cursor-pointer border-0 p-0 text-center outline-none focus-visible:ring-2 focus-visible:ring-white/35 focus-visible:ring-inset"
+          className="group w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative select-none z-10 cursor-pointer border-0 p-0 text-center outline-none focus-visible:ring-2 focus-visible:ring-white/35 focus-visible:ring-inset"
           aria-label="Swap foreground and background colors"
           style={{ backgroundColor: bgHex, containerType: 'size' }}
           onClick={handleSpecimenClick}
