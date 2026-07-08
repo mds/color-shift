@@ -19,10 +19,12 @@ interface StripTransitionProps {
   nextPhoto?: PhotoData | null;
   bgHex: string;
   fgHex: string;
-  /* Neighbor bg colors, so the color panel can blend from the current bg
-     toward the incoming one as the filmstrip slides. */
+  /* Neighbor bg + fg colors, so the color panel and specimen text can blend
+     from the current pair toward the incoming one as the filmstrip slides. */
   prevBgHex?: string;
   nextBgHex?: string;
+  prevFgHex?: string;
+  nextFgHex?: string;
   /* Editable specimen text shown over the color panel. */
   specimenText: string;
   onSpecimenTextChange: (text: string) => void;
@@ -42,7 +44,7 @@ export interface StripHandle {
 }
 
 export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
-  ({ photo, prevPhoto, nextPhoto, bgHex, fgHex, prevBgHex, nextBgHex, specimenText, onSpecimenTextChange, onSwap, onPhotoFileSelected, embedded = false, onPhotoAdvance, onPhotoPrevious }, ref) => {
+  ({ photo, prevPhoto, nextPhoto, bgHex, fgHex, prevBgHex, nextBgHex, prevFgHex, nextFgHex, specimenText, onSpecimenTextChange, onSwap, onPhotoFileSelected, embedded = false, onPhotoAdvance, onPhotoPrevious }, ref) => {
 
     const colorRef = useRef<HTMLDivElement>(null);
     const textRef = useRef<HTMLSpanElement>(null);
@@ -136,12 +138,16 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
       if (dir === 'next' && !nextPhoto) return;
       if (dir === 'prev' && !prevPhoto) return;
       animatingRef.current = true;
-      // Blend the color panel bg toward the incoming photo's bg in lockstep
-      // with the slide (same duration/ease), so the color crossfades as the
-      // photo travels.
+      // Blend the color panel bg and the specimen fg toward the incoming
+      // photo's pair in lockstep with the slide (same duration/ease), so the
+      // whole color pair crossfades as the photo travels.
       const targetBg = dir === 'next' ? nextBgHex : prevBgHex;
+      const targetFg = dir === 'next' ? nextFgHex : prevFgHex;
       if (colorRef.current && targetBg) {
         gsap.to(colorRef.current, { backgroundColor: targetBg, ...SLIDE_TWEEN, overwrite: true });
+      }
+      if (textRef.current && targetFg) {
+        gsap.to(textRef.current, { color: targetFg, ...SLIDE_TWEEN, overwrite: true });
       }
       gsap.to(track, {
         xPercent: dir === 'next' ? -200 : 0,
@@ -150,14 +156,15 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
         overwrite: true,
         onComplete: () => { if (dir === 'next') onPhotoAdvance?.(); else onPhotoPrevious?.(); },
       });
-    }, [nextPhoto, prevPhoto, nextBgHex, prevBgHex, onPhotoAdvance, onPhotoPrevious]);
+    }, [nextPhoto, prevPhoto, nextBgHex, prevBgHex, nextFgHex, prevFgHex, onPhotoAdvance, onPhotoPrevious]);
 
     const snapCenter = useCallback(() => {
       const track = trackRef.current;
       if (track) gsap.to(track, { x: 0, ...SLIDE_TWEEN, overwrite: true });
-      // Return the bg to the current photo's color if a partial drag nudged it.
+      // Return the pair to the current photo's colors if a partial drag nudged them.
       if (colorRef.current) gsap.to(colorRef.current, { backgroundColor: bgHex, ...SLIDE_TWEEN, overwrite: true });
-    }, [bgHex]);
+      if (textRef.current) gsap.to(textRef.current, { color: fgHex, ...SLIDE_TWEEN, overwrite: true });
+    }, [bgHex, fgHex]);
 
     useImperativeHandle(ref, () => ({
       next: () => animateToNeighbor('next'),
@@ -205,15 +212,19 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
         if (d > 0 && !prevPhoto) d = 0;
         d = Math.max(-start.width, Math.min(start.width, d));
         gsap.set(track, { x: d });
-        // Blend the color panel bg toward the neighbor by drag progress, so
-        // the color tracks the photo live under the finger.
+        // Blend the color panel bg and specimen fg toward the neighbor by drag
+        // progress, so the whole pair tracks the photo live under the finger.
+        const progress = Math.min(Math.abs(d) / start.width, 1);
         const targetBg = d < 0 ? nextBgHex : d > 0 ? prevBgHex : null;
+        const targetFg = d < 0 ? nextFgHex : d > 0 ? prevFgHex : null;
         if (colorRef.current && targetBg) {
-          const progress = Math.min(Math.abs(d) / start.width, 1);
           gsap.set(colorRef.current, { backgroundColor: gsap.utils.interpolate(bgHex, targetBg, progress) });
         }
+        if (textRef.current && targetFg) {
+          gsap.set(textRef.current, { color: gsap.utils.interpolate(fgHex, targetFg, progress) });
+        }
       }
-    }, [nextPhoto, prevPhoto, nextBgHex, prevBgHex, bgHex]);
+    }, [nextPhoto, prevPhoto, nextBgHex, prevBgHex, nextFgHex, prevFgHex, bgHex, fgHex]);
 
     const handlePointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
       setPanelPressed(false);

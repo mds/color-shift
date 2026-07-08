@@ -776,6 +776,8 @@ export function ColorShift() {
           fgHex={fgHex}
           prevBgHex={prevColors?.bg}
           nextBgHex={nextColors?.bg}
+          prevFgHex={prevColors?.fg}
+          nextFgHex={nextColors?.fg}
           specimenText={specimenText}
           onSpecimenTextChange={setSpecimenText}
           onSwap={swap}
