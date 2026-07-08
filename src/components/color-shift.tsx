@@ -689,12 +689,21 @@ export function ColorShift() {
     })) as [SliderConfig, SliderConfig, SliderConfig];
   }, [sliderPos, sliderMode, sliderTarget, bg, fg]);
 
+  // ── Display mode (?display=1) — a locked, controls-free showcase: the
+  // shared photo + color pair + text with no dock, no arrows, no editing or
+  // navigation. Read once on mount (behind the load fade, so no flash). ──
+  const [displayMode, setDisplayMode] = useState(false);
+  useEffect(() => {
+    setDisplayMode(new URLSearchParams(window.location.search).get('display') === '1');
+  }, []);
+
   // ── Keyboard — use ref for index so handler always reads latest ──
   const photoIndexRef = useRef(photoIndex);
   photoIndexRef.current = photoIndex;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (displayMode) return; // locked showcase: no keyboard nav
       const target = e.target as HTMLElement;
       // Ignore keys while typing in a field or the editable specimen.
       if (target.tagName === 'INPUT' || target.isContentEditable) return;
@@ -707,7 +716,7 @@ export function ColorShift() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [injectPhoto, toggleTheme]);
+  }, [injectPhoto, toggleTheme, displayMode]);
 
   // ── Embedded (iframe) mode — the photo panel drops its upload surface
   // and click advances the photo instead. Detected once on mount. ──
@@ -787,12 +796,14 @@ export function ColorShift() {
           onSwap={swap}
           onPhotoFileSelected={injectPhotoFromFile}
           embedded={embedded}
+          displayMode={displayMode}
           onPhotoAdvance={() => navigateTo(photoIndex + 1)}
           onPhotoPrevious={() => navigateTo(photoIndex - 1)}
         />
       </div>
 
-      {/* Controls — new UI components */}
+      {/* Controls — hidden entirely in the locked display showcase */}
+      {!displayMode && (
       <ControlContainer
         slidersExpanded={slidersExpanded}
         sliderMode={sliderMode}
@@ -852,6 +863,7 @@ export function ColorShift() {
         onCopyParams={copyParameters}
         onDownloadMd={downloadMarkdown}
       />
+      )}
     </div>
   );
 }

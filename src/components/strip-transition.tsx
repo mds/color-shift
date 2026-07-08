@@ -32,6 +32,8 @@ interface StripTransitionProps {
   onSwap?: () => void;
   onPhotoFileSelected?: (file: File) => void;
   embedded?: boolean;
+  /* Locked showcase: no editing, swapping, dragging, or nav arrows. */
+  displayMode?: boolean;
   onPhotoAdvance?: () => void;
   onPhotoPrevious?: () => void;
 }
@@ -44,7 +46,7 @@ export interface StripHandle {
 }
 
 export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
-  ({ photo, prevPhoto, nextPhoto, bgHex, fgHex, prevBgHex, nextBgHex, prevFgHex, nextFgHex, specimenText, onSpecimenTextChange, onSwap, onPhotoFileSelected, embedded = false, onPhotoAdvance, onPhotoPrevious }, ref) => {
+  ({ photo, prevPhoto, nextPhoto, bgHex, fgHex, prevBgHex, nextBgHex, prevFgHex, nextFgHex, specimenText, onSpecimenTextChange, onSwap, onPhotoFileSelected, embedded = false, displayMode = false, onPhotoAdvance, onPhotoPrevious }, ref) => {
 
     const colorRef = useRef<HTMLDivElement>(null);
     const textRef = useRef<HTMLSpanElement>(null);
@@ -175,6 +177,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
     // to one neighbor), then past 20% of the panel it commits via the same
     // animateToNeighbor path the arrows use; otherwise it snaps back.
     const handlePointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
+      if (displayMode) return; // locked showcase: no drag navigation
       if (!event.isPrimary) return;
       if (event.pointerType === 'mouse' && event.button !== 0) return;
       if (animatingRef.current) return;
@@ -188,7 +191,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
       };
       // Capture happens on drag intent (in move), not here: capturing on
       // down retargets the follow-up click to this root div in Chrome.
-    }, []);
+    }, [displayMode]);
 
     const handlePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
       const start = swipeStartRef.current;
@@ -273,16 +276,16 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
             The text scales on a panel press (group-active). */}
         <div
           ref={colorRef}
-          className="w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative z-10 cursor-pointer"
+          className={`w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative z-10 ${displayMode ? '' : 'cursor-pointer'}`}
           style={{ backgroundColor: bgHex, containerType: 'size' }}
-          onClick={() => onSwap?.()}
-          onPointerDown={() => setPanelPressed(true)}
+          onClick={() => { if (!displayMode) onSwap?.(); }}
+          onPointerDown={() => { if (!displayMode) setPanelPressed(true); }}
           onPointerUp={() => setPanelPressed(false)}
           onPointerLeave={() => setPanelPressed(false)}
         >
           <span
             ref={textRef}
-            contentEditable
+            contentEditable={!displayMode}
             suppressContentEditableWarning
             role="textbox"
             aria-label="Specimen text"
@@ -291,7 +294,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
-            className={`select-text cursor-text block outline-none text-center break-words leading-[1.05] tracking-tight transition-transform duration-100 ease-out will-change-transform ${panelPressed ? 'scale-[0.97]' : ''}`}
+            className={`block outline-none text-center break-words leading-[1.05] tracking-tight transition-transform duration-100 ease-out will-change-transform ${displayMode ? 'select-none pointer-events-none' : 'select-text cursor-text'} ${panelPressed ? 'scale-[0.97]' : ''}`}
             style={{
               color: fgHex,
               caretColor: fgHex,
@@ -412,7 +415,8 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
             panel as before: the left chip at the photo panel's left edge (strip
             midpoint + 16px), the right at the far right, vertically centered and
             hover-revealed. Each stops propagation so the click drives
-            navigation, not the panel underneath. */}
+            navigation, not the panel underneath. Hidden in the locked showcase. */}
+        {!displayMode && (
         <div
           className={`pointer-events-none absolute inset-0 z-30 transition-opacity duration-150 ${isDraggingOver ? 'opacity-0' : 'opacity-100 sm:opacity-0 sm:group-hover/strip:opacity-100'}`}
         >
@@ -433,6 +437,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
             <RightArrowIcon className="h-5 w-5" />
           </button>
         </div>
+        )}
       </div>
     );
   }
