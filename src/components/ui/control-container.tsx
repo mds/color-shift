@@ -191,9 +191,10 @@ export function ControlContainer({
 
   return (
     <div
-      className={`bg-[var(--cs-canvas)] w-full shrink-0 overflow-visible ${className ?? ''}`}
+      className={`hidden sm:block bg-[var(--cs-canvas)] w-full shrink-0 overflow-visible ${className ?? ''}`}
     >
-      {/* ──────────────── DESKTOP (sm+) — unchanged ──────────────── */}
+      {/* ──────────────── DESKTOP (sm+) — mobile split into MobileTopBar /
+          MobileBottomBar, rendered by the parent around the strip. ────── */}
       <div className="hidden sm:flex sm:flex-col sm:p-4 sm:w-full sm:overflow-visible">
         {/* Slider panel — always mounted, animated with CSS grid rows + transform */}
         <div
@@ -260,139 +261,180 @@ export function ControlContainer({
           onDownloadMd={onDownloadMd}
         />
       </div>
+    </div>
+  );
+}
 
-      {/* ──────────────── MOBILE (<sm) — new layout ──────────────── */}
-      {/* Dock padding per Figma: 24 / 24 / 24 / 48 (+ safe-area inset) */}
-      {/* Mobile font-size: all control text forced to 18px per Figma spec. */}
-      {/* [&_*]:text-[16px] has higher specificity than primitives' text-xs. */}
-      <div
-        className="flex sm:hidden flex-col w-full overflow-visible px-6 pt-6 [&_*]:text-[16px]"
-        style={{
-          paddingBottom: 'calc(3rem + env(safe-area-inset-bottom))',
-        }}
-      >
-        {/* Slider panel (mobile) — only open when slidersExpanded AND state === 'default' */}
-        <YPanel open={mobileSlidersOpen} className="flex flex-col gap-4 w-full">
-          <ColorMode
-            mode={sliderMode}
-            onModeChange={onSliderModeChange}
-            // showClose
-            // onClose={onSlidersClose}
-            className="w-full"
+// ─── Mobile split bars ───────────────────────────────────────────────
+// On mobile the controls sandwich the photo strip: a score/export bar on
+// top, the strip, then an fg/swap/bg bar on the bottom. These two components
+// are rendered by the parent around <StripTransition/>; the desktop dock
+// above stays a single block. Both share the parent's control state/handlers.
+
+type MobileTopProps = Pick<
+  ControlContainerProps,
+  | 'controlsState' | 'algorithm' | 'rating' | 'contrastValue' | 'thresholds'
+  | 'activeThreshold' | 'onThresholdSelect' | 'onResultsToggle'
+  | 'onAlgorithmToggle' | 'onExportToggle' | 'exportFeedback'
+  | 'onCopyUrl' | 'onCopyParams' | 'onDownloadMd'
+>;
+
+export function MobileTopBar({
+  controlsState,
+  algorithm,
+  rating,
+  contrastValue,
+  thresholds,
+  activeThreshold,
+  onThresholdSelect,
+  onResultsToggle,
+  onAlgorithmToggle,
+  onExportToggle,
+  exportFeedback,
+  onCopyUrl,
+  onCopyParams,
+  onDownloadMd,
+}: MobileTopProps) {
+  const copyUrlLabel = exportFeedback === 'url' ? 'COPIED URL' : 'COPY URL';
+  const copyParamsLabel = exportFeedback === 'params' ? 'COPIED PARAMS' : 'COPY PARAMETERS';
+  const downloadMdLabel = exportFeedback === 'markdown' ? 'DOWNLOADED .MD' : 'DOWNLOAD .MD';
+
+  const thresholdStackRef = useRef<HTMLDivElement>(null);
+  const prevThresholdHeight = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const el = thresholdStackRef.current;
+    if (!el) return;
+    const newHeight = el.offsetHeight;
+    if (prevThresholdHeight.current !== null && prevThresholdHeight.current !== newHeight) {
+      gsap.fromTo(
+        el,
+        { height: prevThresholdHeight.current },
+        { height: newHeight, duration: 0.25, ease: 'power2.out', overwrite: true, onComplete: () => { el.style.height = 'auto'; } },
+      );
+    }
+    prevThresholdHeight.current = newHeight;
+  }, [algorithm, thresholds]);
+
+  return (
+    <div className="flex sm:hidden flex-col w-full shrink-0 bg-[var(--cs-canvas)] px-6 pt-6 pb-3 [&_*]:text-[16px]">
+      {/* Score (left) + Export/toggle (right) */}
+      <div className="flex items-center justify-between w-full">
+        <YPanel open={controlsState !== 'export'}>
+          <Score
+            type={algorithm}
+            state={controlsState === 'score' ? 'selected' : 'default'}
+            rating={rating}
+            value={contrastValue}
+            onClick={onResultsToggle}
           />
-          <ColorSliders
-            sliders={sliders}
-            activeMode={sliderMode}
-            onChange={onSliderChange}
-            onDragStart={onSliderDragStart}
-            onDragEnd={onSliderDragEnd}
-          />
         </YPanel>
-
-        {/* Score panel — threshold stack. Opens ABOVE the always-visible score/export row.
-            (The WCAG/APCA toggle replaces the EXPORT button in the bottom row when this panel is open.) */}
-        <YPanel open={controlsState === 'score'} className="flex flex-col gap-3 pt-3">
-          {/* Vertical threshold stack — full-width CSButtons. The outer ref'd
-              wrapper is what the useLayoutEffect above tweens between
-              WCAG (4 rows) and APCA (5 rows) heights. */}
-          <div ref={thresholdStackRef} className="flex flex-col gap-3 w-full overflow-hidden">
-            {thresholds.map((t) => (
-              <CSButton
-                key={t}
-                label={String(t)}
-                state={activeThreshold === t ? 'selected' : 'default'}
-                animated
-                onClick={() => onThresholdSelect?.(t)}
-                className="w-full"
-              />
-            ))}
-          </div>
-        </YPanel>
-
-        {/* Export panel — action stack. Opens ABOVE the always-visible score/export row. */}
-        <YPanel open={controlsState === 'export'} className="flex flex-col gap-3 pt-3">
-          <CSButton label={copyUrlLabel} animated onClick={onCopyUrl} className="w-full" />
-          <CSButton label={copyParamsLabel} animated onClick={onCopyParams} className="w-full" />
-          <CSButton label={downloadMdLabel} animated onClick={onDownloadMd} className="w-full" />
-        </YPanel>
-
-        {/* Swatches row — Y-collapses when a panel is open (score or export).
-            Adds pt-3 only when the color sliders are expanded above it so
-            there's breathing room; no top padding when collapsed. */}
-        <YPanel
-          open={controlsState === 'default'}
-          className={mobileSlidersOpen ? 'pt-4' : ''}
+        <button
+          type="button"
+          onClick={controlsState === 'score' ? onAlgorithmToggle : onExportToggle}
+          className={`flex items-center justify-center p-2 rounded-[4px] shrink-0 transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-white/30 ${
+            controlsState === 'export' ? 'bg-[var(--cs-surface-raised)]' : 'hover:bg-[var(--cs-surface-raised)]'
+          }`}
+          style={controlsState === 'export' ? { boxShadow: 'inset 0 0 0 1px var(--cs-stroke)' } : undefined}
         >
-          <div className="flex items-center justify-between w-full">
-            <CSButton
-              label={fgHex.replace('#', '').toUpperCase()}
-              swatchColor={fgHex}
-              accentColor={fgHex}
-              state={fgState ?? 'default'}
-              animated
-              onClick={onFgClick}
-            />
-            <IconButton selected={swapSelected} onClick={onSwap}>
-              <SwapArrowsIcon
-                className={`size-[30px] ${swapSelected ? 'text-[#e5e0e0]' : 'text-[#a39f9f]'}`}
-              />
-            </IconButton>
-            <CSButton
-              label={bgHex.replace('#', '').toUpperCase()}
-              swatchColor={bgHex}
-              accentColor={bgHex}
-              state={bgState ?? 'default'}
-              animated
-              onClick={onBgClick}
-            />
-          </div>
-        </YPanel>
+          <TubeText
+            text={controlsState === 'score' ? (algorithm === 'wcag' ? 'WCAG' : 'APCA') : 'EXPORT'}
+            className="font-mono text-xs leading-none whitespace-nowrap"
+            style={{ color: controlsState === 'export' ? '#e5e0e0' : '#a39f9f' }}
+          />
+        </button>
+      </div>
 
-        {/* Always-visible score + export row. Buttons stay put; tapping toggles panels above. */}
-        <div className="flex flex-col pt-3">
-          {/* Score + Export row: justify-between. Both get 'selected' styling when their panel is open. */}
-          <div className="flex items-center justify-between w-full">
-            {/* Score collapses (Y-axis) when export is open; same mechanic as
-                every other mobile panel so it lands back in exactly the same
-                position with no TubeText interference. */}
-            <YPanel open={controlsState !== 'export'}>
-              <Score
-                type={algorithm}
-                state={controlsState === 'score' ? 'selected' : 'default'}
-                rating={rating}
-                value={contrastValue}
-                onClick={onResultsToggle}
-              />
-            </YPanel>
-            {/* Right-side button: in score state, swaps to WCAG/APCA toggle via TubeText's text change animation. */}
-            <button
-              type="button"
-              onClick={controlsState === 'score' ? onAlgorithmToggle : onExportToggle}
-              className={`flex items-center justify-center p-2 rounded-[4px] shrink-0 transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-white/30 ${
-                controlsState === 'export' ? 'bg-[var(--cs-surface-raised)]' : 'hover:bg-[var(--cs-surface-raised)]'
-              }`}
-              style={
-                controlsState === 'export'
-                  ? { boxShadow: 'inset 0 0 0 1px var(--cs-stroke)' }
-                  : undefined
-              }
-            >
-              <TubeText
-                text={
-                  controlsState === 'score'
-                    ? (algorithm === 'wcag' ? 'WCAG' : 'APCA')
-                    : 'EXPORT'
-                }
-                className="font-mono text-xs leading-none whitespace-nowrap"
-                style={{ color: controlsState === 'export' ? '#e5e0e0' : '#a39f9f' }}
-              />
-            </button>
-          </div>
+      {/* Panels expand BELOW the row (pushing the strip down). */}
+      <YPanel open={controlsState === 'score'} className="flex flex-col gap-3 pt-3">
+        <div ref={thresholdStackRef} className="flex flex-col gap-3 w-full overflow-hidden">
+          {thresholds.map((t) => (
+            <CSButton
+              key={t}
+              label={String(t)}
+              state={activeThreshold === t ? 'selected' : 'default'}
+              animated
+              onClick={() => onThresholdSelect?.(t)}
+              className="w-full"
+            />
+          ))}
         </div>
+      </YPanel>
+      <YPanel open={controlsState === 'export'} className="flex flex-col gap-3 pt-3">
+        <CSButton label={copyUrlLabel} animated onClick={onCopyUrl} className="w-full" />
+        <CSButton label={copyParamsLabel} animated onClick={onCopyParams} className="w-full" />
+        <CSButton label={downloadMdLabel} animated onClick={onDownloadMd} className="w-full" />
+      </YPanel>
+    </div>
+  );
+}
 
-        {/* Mobile photo nav lives on the strip itself now (the prev/next chips
-            split across the color + photo panels in strip-transition.tsx), so
-            the dock no longer carries its own bottom arrows. */}
+type MobileBottomProps = Pick<
+  ControlContainerProps,
+  | 'slidersExpanded' | 'controlsState' | 'sliderMode' | 'sliders'
+  | 'onSliderChange' | 'onSliderModeChange' | 'onSliderDragStart' | 'onSliderDragEnd'
+  | 'fgHex' | 'bgHex' | 'fgState' | 'bgState' | 'onFgClick' | 'onBgClick'
+  | 'onSwap' | 'swapSelected'
+>;
+
+export function MobileBottomBar({
+  slidersExpanded,
+  controlsState,
+  sliderMode,
+  sliders,
+  onSliderChange,
+  onSliderModeChange,
+  onSliderDragStart,
+  onSliderDragEnd,
+  fgHex,
+  bgHex,
+  fgState,
+  bgState,
+  onFgClick,
+  onBgClick,
+  onSwap,
+  swapSelected,
+}: MobileBottomProps) {
+  const mobileSlidersOpen = slidersExpanded && controlsState === 'default';
+  return (
+    <div
+      className="flex sm:hidden flex-col w-full shrink-0 bg-[var(--cs-canvas)] px-6 pt-3 [&_*]:text-[16px]"
+      style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))' }}
+    >
+      {/* Sliders expand ABOVE the swatch row (pushing the strip up). */}
+      <YPanel open={mobileSlidersOpen} className="flex flex-col gap-4 w-full">
+        <ColorMode mode={sliderMode} onModeChange={onSliderModeChange} className="w-full" />
+        <ColorSliders
+          sliders={sliders}
+          activeMode={sliderMode}
+          onChange={onSliderChange}
+          onDragStart={onSliderDragStart}
+          onDragEnd={onSliderDragEnd}
+        />
+      </YPanel>
+
+      {/* fg — swap — bg */}
+      <div className={`flex items-center justify-between w-full ${mobileSlidersOpen ? 'pt-4' : ''}`}>
+        <CSButton
+          label={fgHex.replace('#', '').toUpperCase()}
+          swatchColor={fgHex}
+          accentColor={fgHex}
+          state={fgState ?? 'default'}
+          animated
+          onClick={onFgClick}
+        />
+        <IconButton selected={swapSelected} onClick={onSwap}>
+          <SwapArrowsIcon
+            className={`size-[30px] ${swapSelected ? 'text-[#e5e0e0]' : 'text-[#a39f9f]'}`}
+          />
+        </IconButton>
+        <CSButton
+          label={bgHex.replace('#', '').toUpperCase()}
+          swatchColor={bgHex}
+          accentColor={bgHex}
+          state={bgState ?? 'default'}
+          animated
+          onClick={onBgClick}
+        />
       </div>
     </div>
   );

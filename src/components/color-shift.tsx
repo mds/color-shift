@@ -28,7 +28,7 @@ import {
 import type { PhotoData } from './control-strip';
 import { StripTransition, type StripHandle } from './strip-transition';
 import { getFontForPhoto } from '@/lib/fonts';
-import { ControlContainer } from './ui/control-container';
+import { ControlContainer, MobileTopBar, MobileBottomBar } from './ui/control-container';
 
 interface PhotoColors { bg: string; fg: string; }
 
@@ -782,6 +782,40 @@ export function ColorShift() {
     };
   }, []);
 
+  // Shared control handlers, used by both the desktop dock (ControlContainer)
+  // and the mobile split bars (MobileTopBar / MobileBottomBar).
+  const handleSliderChange = (index: number, value: number) => {
+    if (sliderTweenRef.current) sliderTweenRef.current.kill();
+    const newPos = [...sliderPosRef.current] as [number, number, number];
+    newPos[index] = value;
+    sliderPosRef.current = newPos;
+    setSliderPos(newPos);
+    const cd = sliderTarget === 'bg' ? bg : fg;
+    const { values } = percentToActual(newPos, sliderMode, cd);
+    const setter = sliderTarget === 'bg' ? setManualBg : setManualFg;
+    setter(actualToHex(values, sliderMode));
+  };
+  const handleBgClick = () => {
+    if (!slidersExpanded) { setSlidersExpanded(true); setSliderTarget('bg'); }
+    else if (sliderTarget === 'bg') { setSlidersExpanded(false); }
+    else { setSliderTarget('bg'); }
+  };
+  const handleFgClick = () => {
+    if (!slidersExpanded) { setSlidersExpanded(true); setSliderTarget('fg'); }
+    else if (sliderTarget === 'fg') { setSlidersExpanded(false); }
+    else { setSliderTarget('fg'); }
+  };
+  const handleControlSwap = () => {
+    swap();
+    if (slidersExpanded) setSliderTarget(t => t === 'bg' ? 'fg' : 'bg');
+  };
+  const algorithmLabel = contrastAlgorithm === 'WCAG2' ? 'wcag' : 'apca';
+  const thresholdList = contrastAlgorithm === 'WCAG2' ? [1.5, 3.0, 4.5, 7.0] : [30, 45, 60, 75, 90];
+  const bgSwatchState = slidersExpanded && sliderTarget === 'bg' ? 'selected' : 'default';
+  const fgSwatchState = slidersExpanded && sliderTarget === 'fg' ? 'selected' : 'default';
+  const toggleScore = () => setControlsState(s => s === 'score' ? 'default' : 'score');
+  const toggleExport = () => setControlsState(s => s === 'export' ? 'default' : 'export');
+
   return (
     <div
       ref={rootRef}
@@ -789,6 +823,26 @@ export function ColorShift() {
       data-theme={theme}
       style={{ backgroundColor: 'var(--cs-canvas)' }}
     >
+      {/* MOBILE top bar — score / export (sandwiches the strip; sm:hidden). */}
+      {!displayMode && (
+        <MobileTopBar
+          controlsState={controlsState}
+          algorithm={algorithmLabel}
+          rating={contrast.grade}
+          contrastValue={contrast.scoreLabel}
+          thresholds={thresholdList}
+          activeThreshold={activeThreshold}
+          onThresholdSelect={bumpTo}
+          onResultsToggle={toggleScore}
+          onAlgorithmToggle={toggleContrastAlgorithm}
+          onExportToggle={toggleExport}
+          exportFeedback={exportFeedback}
+          onCopyUrl={copyShareUrl}
+          onCopyParams={copyParameters}
+          onDownloadMd={downloadMarkdown}
+        />
+      )}
+
       {/* Color + Photo display */}
       <div className="flex-1 min-h-0 overflow-hidden">
         <StripTransition
@@ -814,26 +868,35 @@ export function ColorShift() {
         />
       </div>
 
-      {/* Controls — hidden entirely in the locked display showcase */}
+      {/* MOBILE bottom bar — fg / swap / bg (sm:hidden). */}
+      {!displayMode && (
+        <MobileBottomBar
+          slidersExpanded={slidersExpanded}
+          controlsState={controlsState}
+          sliderMode={sliderMode}
+          sliders={sliderConfigs}
+          onSliderChange={handleSliderChange}
+          onSliderModeChange={(m) => setSliderMode(m)}
+          onSliderDragStart={onDragStart}
+          onSliderDragEnd={onDragEnd}
+          fgHex={fgHex}
+          bgHex={bgHex}
+          fgState={fgSwatchState}
+          bgState={bgSwatchState}
+          onFgClick={handleFgClick}
+          onBgClick={handleBgClick}
+          onSwap={handleControlSwap}
+          swapSelected={lighterAsBg}
+        />
+      )}
+
+      {/* DESKTOP dock — hidden on mobile; the locked display hides it too. */}
       {!displayMode && (
       <ControlContainer
         slidersExpanded={slidersExpanded}
         sliderMode={sliderMode}
         sliders={sliderConfigs}
-        onSliderChange={(index, value) => {
-          // Update normalized percentage directly (no animation)
-          if (sliderTweenRef.current) sliderTweenRef.current.kill();
-          const newPos = [...sliderPosRef.current] as [number, number, number];
-          newPos[index] = value;
-          sliderPosRef.current = newPos;
-          setSliderPos(newPos);
-
-          // Convert percentages → actual values → hex
-          const cd = sliderTarget === 'bg' ? bg : fg;
-          const { values } = percentToActual(newPos, sliderMode, cd);
-          const setter = sliderTarget === 'bg' ? setManualBg : setManualFg;
-          setter(actualToHex(values, sliderMode));
-        }}
+        onSliderChange={handleSliderChange}
         onSliderDragStart={onDragStart}
         onSliderDragEnd={onDragEnd}
         onSliderModeChange={(m) => setSliderMode(m)}
@@ -842,34 +905,23 @@ export function ColorShift() {
         controlsState={controlsState}
         bgHex={bgHex}
         fgHex={fgHex}
-        algorithm={contrastAlgorithm === 'WCAG2' ? 'wcag' : 'apca'}
+        algorithm={algorithmLabel}
         rating={contrast.grade}
         contrastValue={contrast.scoreLabel}
-        thresholds={contrastAlgorithm === 'WCAG2' ? [1.5, 3.0, 4.5, 7.0] : [30, 45, 60, 75, 90]}
+        thresholds={thresholdList}
         activeThreshold={activeThreshold}
-        bgState={slidersExpanded && sliderTarget === 'bg' ? 'selected' : 'default'}
-        fgState={slidersExpanded && sliderTarget === 'fg' ? 'selected' : 'default'}
-        onBgClick={() => {
-          if (!slidersExpanded) { setSlidersExpanded(true); setSliderTarget('bg'); }
-          else if (sliderTarget === 'bg') { setSlidersExpanded(false); }
-          else { setSliderTarget('bg'); }
-        }}
-        onFgClick={() => {
-          if (!slidersExpanded) { setSlidersExpanded(true); setSliderTarget('fg'); }
-          else if (sliderTarget === 'fg') { setSlidersExpanded(false); }
-          else { setSliderTarget('fg'); }
-        }}
-        onSwap={() => {
-          swap();
-          if (slidersExpanded) setSliderTarget(t => t === 'bg' ? 'fg' : 'bg');
-        }}
+        bgState={bgSwatchState}
+        fgState={fgSwatchState}
+        onBgClick={handleBgClick}
+        onFgClick={handleFgClick}
+        onSwap={handleControlSwap}
         swapSelected={lighterAsBg}
-        onResultsToggle={() => setControlsState(s => s === 'score' ? 'default' : 'score')}
+        onResultsToggle={toggleScore}
         onAlgorithmToggle={toggleContrastAlgorithm}
         onThresholdSelect={bumpTo}
         onLeftArrow={() => stripRef.current?.prev()}
         onRightArrow={() => stripRef.current?.next()}
-        onExportToggle={() => setControlsState(s => s === 'export' ? 'default' : 'export')}
+        onExportToggle={toggleExport}
         exportFeedback={exportFeedback}
         onCopyUrl={copyShareUrl}
         onCopyParams={copyParameters}
