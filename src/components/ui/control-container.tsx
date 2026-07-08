@@ -361,7 +361,8 @@ export function MobileTopBar({
       </YPanel>
       <YPanel open={controlsState === 'export'} className="flex flex-col gap-3 pt-3">
         <CSButton label={copyUrlLabel} animated onClick={onCopyUrl} className="w-full" />
-        <CSButton label={copyParamsLabel} animated onClick={onCopyParams} className="w-full" />
+        {/* Copy parameters removed 2026-07-08 — re-enable if needed:
+        <CSButton label={copyParamsLabel} animated onClick={onCopyParams} className="w-full" /> */}
         <CSButton label={downloadMdLabel} animated onClick={onDownloadMd} className="w-full" />
       </YPanel>
     </div>

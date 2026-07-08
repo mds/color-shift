@@ -260,7 +260,8 @@ export function ControlsBar({
             }}
           >
             <CSButton label={copyUrlLabel} animated onClick={onCopyUrl} />
-            <CSButton label={copyParamsLabel} animated onClick={onCopyParams} />
+            {/* Copy parameters removed 2026-07-08 — re-enable if needed:
+            <CSButton label={copyParamsLabel} animated onClick={onCopyParams} /> */}
             <CSButton label={downloadMdLabel} animated onClick={onDownloadMd} />
           </div>
           <button
@@ -341,7 +342,8 @@ export function ControlsBar({
               className="flex items-center gap-1"
             >
               <CSButton label={copyUrlLabel} animated onClick={onCopyUrl} />
-              <CSButton label={copyParamsLabel} animated onClick={onCopyParams} />
+              {/* Copy parameters removed 2026-07-08 — re-enable if needed:
+              <CSButton label={copyParamsLabel} animated onClick={onCopyParams} /> */}
               <CSButton label={downloadMdLabel} animated onClick={onDownloadMd} />
             </div>
 
