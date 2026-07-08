@@ -692,18 +692,18 @@ export function ColorShift() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT') return;
+      // Ignore keys while typing in a field or the editable specimen.
+      if (target.tagName === 'INPUT' || target.isContentEditable) return;
       // Arrows drive the one filmstrip transition (via the strip handle), the
       // same path the on-photo arrows, drag, and control-bar arrows use.
       if (e.key === 'ArrowRight') { e.preventDefault(); stripRef.current?.next(); }
       if (e.key === 'ArrowLeft') { e.preventDefault(); stripRef.current?.prev(); }
       if (e.code === 'Space') { e.preventDefault(); injectPhoto(); }
-      if ((e.key === 's' || e.key === 'S') && !e.metaKey && !e.ctrlKey) { e.preventDefault(); swap(); }
       if ((e.key === 't' || e.key === 'T') && !e.metaKey && !e.ctrlKey) { e.preventDefault(); toggleTheme(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [injectPhoto, swap, toggleTheme]);
+  }, [injectPhoto, toggleTheme]);
 
   // ── Embedded (iframe) mode — the photo panel drops its upload surface
   // and click advances the photo instead. Detected once on mount. ──

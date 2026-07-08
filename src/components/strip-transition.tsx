@@ -45,13 +45,15 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
   ({ photo, prevPhoto, nextPhoto, bgHex, fgHex, prevBgHex, nextBgHex, specimenText, onSpecimenTextChange, onSwap, onPhotoFileSelected, embedded = false, onPhotoAdvance, onPhotoPrevious }, ref) => {
 
     const colorRef = useRef<HTMLDivElement>(null);
-    const textRef = useRef<HTMLInputElement>(null);
+    const textRef = useRef<HTMLSpanElement>(null);
     // The filmstrip track holding [prev, current, next], centered on the
     // middle slide (xPercent -100). Both drag and arrow drive this one el.
     const trackRef = useRef<HTMLDivElement>(null);
     const [isDraggingOver, setIsDraggingOver] = useState(false);
-    // Color panel: single click swaps fg/bg, double click edits the specimen.
-    const [isEditing, setIsEditing] = useState(false);
+    // Press feedback for the specimen text, set ONLY by a press on the color
+    // panel background (the text stops propagation, so pressing the text
+    // itself never triggers it).
+    const [panelPressed, setPanelPressed] = useState(false);
     const currentPhotoId = useRef<string | null>(null);
     const swipeStartRef = useRef<{ x: number; y: number; pointerId: number; didSwipe: boolean; width: number } | null>(null);
     const suppressClickRef = useRef(false);
@@ -68,14 +70,44 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
       }
     }, [bgHex, fgHex]);
 
-    // Enter edit mode → focus the specimen input (and select all for a quick
-    // overwrite). Exit is on blur.
-    useEffect(() => {
-      if (isEditing && textRef.current) {
-        textRef.current.focus();
-        textRef.current.select();
+    // Fit the specimen so wrapped text always stays inside the color panel:
+    // the field is the panel width minus a 24px inner padding on each side,
+    // lines wrap, and the font-size binary-searches down as the text grows
+    // (and back up as it shrinks) to fit the panel's width and height.
+    const fitText = useCallback(() => {
+      const el = textRef.current;
+      const panel = colorRef.current;
+      if (!el || !panel) return;
+      const availW = Math.max(0, panel.clientWidth - 48);
+      const availH = Math.max(0, panel.clientHeight - 48);
+      el.style.width = `${availW}px`;
+      let lo = 16, hi = 200, best = 16;
+      for (let i = 0; i < 9; i++) {
+        const mid = (lo + hi) / 2;
+        el.style.fontSize = `${mid}px`;
+        if (el.scrollWidth <= availW + 1 && el.scrollHeight <= availH) { best = mid; lo = mid; }
+        else { hi = mid; }
       }
-    }, [isEditing]);
+      el.style.fontSize = `${best}px`;
+    }, []);
+
+    // Keep the contentEditable specimen in sync with state, but only write to
+    // the DOM when it actually differs (e.g. restored from a URL) so typing
+    // never fights React and the caret never jumps. Refit after any change.
+    useEffect(() => {
+      const el = textRef.current;
+      if (el && el.textContent !== specimenText) el.textContent = specimenText;
+      fitText();
+    }, [specimenText, fitText]);
+
+    // Refit when the panel resizes (viewport change, layout shift).
+    useEffect(() => {
+      const panel = colorRef.current;
+      if (!panel) return;
+      const ro = new ResizeObserver(() => fitText());
+      ro.observe(panel);
+      return () => ro.disconnect();
+    }, [fitText]);
 
     // Filmstrip recenter. The track holds [prev, current, next] and rests
     // centered on the middle slide (xPercent -100). Whenever the current
@@ -158,6 +190,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
       const dy = event.clientY - start.y;
       if (!start.didSwipe && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.5) {
         start.didSwipe = true;
+        setPanelPressed(false); // a drag isn't a press
         event.currentTarget.setPointerCapture?.(event.pointerId);
         if (event.pointerType === 'mouse') document.body.style.cursor = 'grabbing';
       }
@@ -183,6 +216,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
     }, [nextPhoto, prevPhoto, nextBgHex, prevBgHex, bgHex]);
 
     const handlePointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
+      setPanelPressed(false);
       const start = swipeStartRef.current;
       if (!start || start.pointerId !== event.pointerId) return;
       const dx = event.clientX - start.x;
@@ -199,6 +233,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
     }, [nextPhoto, prevPhoto, animateToNeighbor, snapCenter]);
 
     const handlePointerCancel = useCallback(() => {
+      setPanelPressed(false);
       swipeStartRef.current = null;
       document.body.style.cursor = '';
       snapCenter();
@@ -221,30 +256,31 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
         onPointerCancel={handlePointerCancel}
         onClickCapture={suppressClickAfterSwipe}
       >
-        {/* Color panel — single click swaps fg/bg, double click edits the
-            specimen text. Only the text scales on press, not the panel. The
-            input is click-through until editing so the panel owns the click. */}
+        {/* Color panel — click the panel BACKGROUND to swap fg/bg; click the
+            text itself to edit it (a contentEditable specimen sized to its own
+            content, so there is always panel around it to click for a swap).
+            The text scales on a panel press (group-active). */}
         <div
           ref={colorRef}
-          className={`group/color w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative z-10 ${isEditing ? 'cursor-text' : 'cursor-pointer'}`}
+          className="w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative z-10 cursor-pointer"
           style={{ backgroundColor: bgHex, containerType: 'size' }}
-          onClick={() => { if (!isEditing) onSwap?.(); }}
-          onDoubleClick={() => setIsEditing(true)}
+          onClick={() => onSwap?.()}
+          onPointerDown={() => setPanelPressed(true)}
+          onPointerUp={() => setPanelPressed(false)}
+          onPointerLeave={() => setPanelPressed(false)}
         >
-          <input
+          <span
             ref={textRef}
-            type="text"
-            value={specimenText}
-            onChange={(e) => onSpecimenTextChange(e.target.value)}
-            onBlur={() => setIsEditing(false)}
-            onClick={(e) => { if (isEditing) e.stopPropagation(); }}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') textRef.current?.blur(); }}
-            readOnly={!isEditing}
-            placeholder="Aa"
-            spellCheck={false}
-            autoComplete="off"
+            contentEditable
+            suppressContentEditableWarning
+            role="textbox"
             aria-label="Specimen text"
-            className={`bg-transparent border-none outline-none text-center w-full px-8 text-[80px] sm:text-[120px] md:text-[160px] lg:text-[200px] leading-[1] tracking-tight transition-transform duration-100 ease-out will-change-transform group-active/color:scale-[0.97] ${isEditing ? 'select-text pointer-events-auto cursor-text' : 'select-none pointer-events-none'}`}
+            spellCheck={false}
+            onInput={(e) => onSpecimenTextChange(e.currentTarget.textContent ?? '')}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
+            className={`select-text cursor-text block outline-none text-center break-words leading-[1.05] tracking-tight transition-transform duration-100 ease-out will-change-transform ${panelPressed ? 'scale-[0.97]' : ''}`}
             style={{
               color: fgHex,
               caretColor: fgHex,
