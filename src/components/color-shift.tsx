@@ -74,6 +74,37 @@ function downloadTextFile(filename: string, contents: string) {
   URL.revokeObjectURL(url);
 }
 
+// Copy text to the clipboard. Tries the async Clipboard API first, then falls
+// back to a temporary textarea + execCommand('copy') — the async API is
+// blocked in cross-origin iframes without allow="clipboard-write", whereas
+// the legacy path works as long as it runs in a user gesture.
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // fall through to the legacy path
+  }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '0';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 function colorToPercent(cd: ColorData, mode: SliderMode): [number, number, number] {
   if (mode === 'OKLCH') {
     const mc = Math.max(maxChroma(cd.oklch.l, cd.oklch.h), cd.oklch.c, 0.001);
@@ -564,13 +595,11 @@ export function ColorShift() {
   }, [bg, fg, contrast, contrastAlgorithm, photoData, getShareUrl]);
 
   const copyShareUrl = useCallback(async () => {
-    await navigator.clipboard.writeText(getShareUrl());
-    setExportFeedback('url');
+    if (await copyText(getShareUrl())) setExportFeedback('url');
   }, [getShareUrl]);
 
   const copyParameters = useCallback(async () => {
-    await navigator.clipboard.writeText(buildShareParams().toString());
-    setExportFeedback('params');
+    if (await copyText(buildShareParams().toString())) setExportFeedback('params');
   }, [buildShareParams]);
 
   const downloadMarkdown = useCallback(() => {
