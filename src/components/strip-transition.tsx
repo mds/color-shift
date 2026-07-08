@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useLayoutEffect, useState, forwardRef, useImperativeHandle, useCallback, type PointerEvent, type MouseEvent } from 'react';
+import { useRef, useEffect, useLayoutEffect, useState, forwardRef, useImperativeHandle, useCallback, type PointerEvent, type MouseEvent, type CSSProperties } from 'react';
 import gsap from 'gsap';
 
 // useLayoutEffect on the client (runs before paint, so the incoming photo is
@@ -300,12 +300,14 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
-            className={`block outline-none text-center break-words leading-[1.05] tracking-tight transition-transform duration-100 ease-out will-change-transform ${displayMode ? 'select-none pointer-events-none' : 'select-text cursor-text'} ${panelPressed ? 'scale-[0.97]' : ''}`}
+            className={`specimen-text block outline-none text-center break-words leading-[1.05] tracking-tight transition-transform duration-100 ease-out will-change-transform ${displayMode ? 'select-none pointer-events-none' : 'select-text cursor-text'} ${panelPressed ? 'scale-[0.97]' : ''}`}
             style={{
               color: fgHex,
               caretColor: fgHex,
               fontFamily: "'Instrument Serif', serif",
-            }}
+              // Text selection tint = fg at 20% (8-digit hex alpha 0x33 ≈ 20%).
+              ['--specimen-sel' as string]: `${fgHex}33`,
+            } as CSSProperties}
           />
         </div>
 

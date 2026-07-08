@@ -96,6 +96,12 @@ button:not(.no-press):not(:active) {
     }
 }
 
+/* Specimen text selection tint = the foreground color at 20% (var set inline
+   on the element from fgHex; falls back to a subtle white). */
+.specimen-text::selection {
+    background: var(--specimen-sel, rgba(255, 255, 255, 0.2));
+}
+
 /* ── Slider Styling ───────────────────────────────────────────────── */
 
 input[type="range"] {
