@@ -316,7 +316,7 @@ export function MobileTopBar({
   }, [algorithm, thresholds]);
 
   return (
-    <div className="flex sm:hidden flex-col w-full shrink-0 bg-[var(--cs-canvas)] px-6 pt-6 pb-3 [&_*]:text-[16px]">
+    <div className="flex sm:hidden flex-col w-full shrink-0 bg-[var(--cs-canvas)] p-4 [&_*]:text-[14px]">
       {/* Score (left) + Export/toggle (right) */}
       <div className="flex items-center justify-between w-full">
         <YPanel open={controlsState !== 'export'}>
@@ -397,8 +397,8 @@ export function MobileBottomBar({
   const mobileSlidersOpen = slidersExpanded && controlsState === 'default';
   return (
     <div
-      className="flex sm:hidden flex-col w-full shrink-0 bg-[var(--cs-canvas)] px-6 pt-3 [&_*]:text-[16px]"
-      style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))' }}
+      className="flex sm:hidden flex-col w-full shrink-0 bg-[var(--cs-canvas)] p-4 [&_*]:text-[14px]"
+      style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
     >
       {/* Sliders expand ABOVE the swatch row (pushing the strip up). */}
       <YPanel open={mobileSlidersOpen} className="flex flex-col gap-4 w-full">
