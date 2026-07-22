@@ -57,6 +57,11 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
     // middle slide (xPercent -100). Both drag and arrow drive this one el.
     const trackRef = useRef<HTMLDivElement>(null);
     const [isDraggingOver, setIsDraggingOver] = useState(false);
+    // Right-click menu on the photo panel (copy the Unsplash photo ID),
+    // positioned at the pointer relative to the panel. Stamped with the photo
+    // it was opened on, so a photo change implicitly dismisses it.
+    const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; photoId: string } | null>(null);
+    const ctxMenuRef = useRef<HTMLDivElement>(null);
     // Press feedback for the specimen text, set ONLY by a press on the color
     // panel background (the text stops propagation, so pressing the text
     // itself never triggers it).
@@ -127,6 +132,23 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
       ro.observe(panel);
       return () => ro.disconnect();
     }, [fitText]);
+
+    // Dismiss the context menu on any press outside it or Escape. The outside
+    // check uses the menu ref so pressing the menu's own button still clicks.
+    useEffect(() => {
+      if (!ctxMenu) return;
+      const close = (e: Event) => {
+        if (ctxMenuRef.current?.contains(e.target as Node)) return;
+        setCtxMenu(null);
+      };
+      const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setCtxMenu(null); };
+      window.addEventListener('pointerdown', close);
+      window.addEventListener('keydown', onKey);
+      return () => {
+        window.removeEventListener('pointerdown', close);
+        window.removeEventListener('keydown', onKey);
+      };
+    }, [ctxMenu]);
 
     const SLIDE_TWEEN = { duration: 0.5, ease: 'power3.inOut' as const };
 
@@ -356,6 +378,14 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
         <div
           className="group/photo w-full h-1/2 sm:w-1/2 sm:h-full relative overflow-hidden cursor-pointer"
           onClick={() => tapNeighbor('next')}
+          onContextMenu={(e) => {
+            // Custom menu for Unsplash photos only; uploads keep the native
+            // menu since their generated ID is meaningless.
+            if (!photo || photo.id.startsWith('upload-')) return;
+            e.preventDefault();
+            const rect = e.currentTarget.getBoundingClientRect();
+            setCtxMenu({ x: e.clientX - rect.left, y: e.clientY - rect.top, photoId: photo.id });
+          }}
           onDragEnter={(e) => {
             if (embedded) return;
             if (e.dataTransfer.types.includes('Files')) {
@@ -438,21 +468,59 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="relative">
-                  <div className={rowBase}>
-                    <TubeText
-                      text={state === 'credit' ? `Unsplash / ${photo.photographer}` : ''}
-                    />
+                  {/* Split into linked segments so "Unsplash" and the
+                      photographer are real anchors. Non-breaking spaces keep the
+                      slash's padding from collapsing at segment edges. */}
+                  {/* whitespace-nowrap keeps a long name (or a mid-tween
+                      narrow width) from wrapping to a second line, which
+                      would grow the bottom-pinned caption upward. Overflow
+                      clips horizontally instead. */}
+                  <div className={`${rowBase} flex justify-end overflow-hidden whitespace-nowrap`}>
+                    {/* "Unsplash" opens this photo's page (still on unsplash.com,
+                        so attribution holds); the name opens the profile. */}
+                    <a href={photo.photoUrl} target="_blank" rel="noopener noreferrer">
+                      <TubeText text={state === 'credit' ? 'Unsplash' : ''} />
+                    </a>
+                    <TubeText text={state === 'credit' ? '\u00A0/\u00A0' : ''} />
+                    <a href={photo.photographerUrl} target="_blank" rel="noopener noreferrer">
+                      <TubeText text={state === 'credit' ? photo.photographer : ''} />
+                    </a>
                   </div>
-                  <div className={`${rowBase} absolute inset-0`}>
+                  {/* These stacked rows sit above the credit row, so they must
+                      be click-transparent or they swallow the anchor clicks. */}
+                  <div className={`${rowBase} absolute inset-0 pointer-events-none overflow-hidden whitespace-nowrap`}>
                     <TubeText text={state === 'filename' ? photo.alt : ''} />
                   </div>
-                  <div className={`${rowBase} absolute inset-0`}>
+                  <div className={`${rowBase} absolute inset-0 pointer-events-none overflow-hidden whitespace-nowrap`}>
                     <TubeText text={state === 'drag' ? 'DRAG AND DROP TO ADD PHOTO' : ''} />
                   </div>
                 </div>
               </div>
             );
           })()}
+
+          {/* Right-click menu. Pointer/click propagation stops here so opening
+              or using the menu never advances the photo or starts a drag. */}
+          {ctxMenu && photo && ctxMenu.photoId === photo.id && (
+            <div
+              ref={ctxMenuRef}
+              className="absolute z-40"
+              style={{ left: ctxMenu.x, top: ctxMenu.y }}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard?.writeText(photo.id);
+                  setCtxMenu(null);
+                }}
+                className="flex h-10 items-center rounded-[4px] bg-[var(--cs-canvas)] px-4 font-mono text-[10px] text-white/90"
+              >
+                Copy photo ID
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Prev / next chips. On mobile they sit near the TOP of the photo (the

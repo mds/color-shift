@@ -18,6 +18,14 @@ function pickQueries(count: number): string[] {
   return pool.slice(0, count);
 }
 
+// Unsplash API guidelines require utm attribution on all links back to
+// unsplash.com (photographer profile, photo page).
+const UTM = 'utm_source=shift_nudge&utm_medium=referral';
+
+function withUtm(url: string): string {
+  return url.includes('?') ? `${url}&${UTM}` : `${url}?${UTM}`;
+}
+
 function mapPhoto(photo: Record<string, unknown>) {
   const urls = photo.urls as Record<string, string>;
   const user = photo.user as Record<string, unknown>;
@@ -36,8 +44,8 @@ function mapPhoto(photo: Record<string, unknown>) {
     tinyUrl,
     color: photo.color as string,
     photographer: user.name as string,
-    photographerUrl: userLinks.html,
-    photoUrl: links.html,
+    photographerUrl: withUtm(userLinks.html),
+    photoUrl: withUtm(links.html),
     downloadLocation: links.download_location,
     alt: (photo.alt_description as string) ?? 'Unsplash photo',
   };
