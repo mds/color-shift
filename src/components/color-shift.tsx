@@ -579,8 +579,10 @@ export function ColorShift() {
     if (lighterAsBg) params.set('swap', '1');
     // Carry the custom specimen text (skip the default "Aa" to keep links clean).
     if (specimenText && specimenText !== 'Aa') params.set('text', specimenText);
+    // Carry a fixed embed font size so shared links keep the pinned size.
+    if (fixedFontSize && fixedFontSize > 0) params.set('size', String(fixedFontSize));
     return params;
-  }, [bg.hex, fg.hex, contrastAlgorithm, photoData, specimenText, lighterAsBg]);
+  }, [bg.hex, fg.hex, contrastAlgorithm, photoData, specimenText, lighterAsBg, fixedFontSize]);
 
   const getShareUrl = useCallback(() => {
     const params = buildShareParams();
