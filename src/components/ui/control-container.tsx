@@ -74,6 +74,10 @@ interface ControlContainerProps {
   onCopyParams?: () => void;
   onDownloadMd?: () => void;
 
+  // Stacked embed layout: the mobile bars render at every width and the
+  // desktop dock never does, instead of switching at the sm breakpoint.
+  stacked?: boolean;
+
   className?: string;
 }
 
@@ -150,6 +154,7 @@ export function ControlContainer({
   onCopyUrl,
   onCopyParams,
   onDownloadMd,
+  stacked = false,
   className,
 }: ControlContainerProps) {
   // Mobile-only: sliders are mutually exclusive with score/export states.
@@ -191,7 +196,7 @@ export function ControlContainer({
 
   return (
     <div
-      className={`hidden sm:block bg-[var(--cs-canvas)] w-full shrink-0 overflow-visible ${className ?? ''}`}
+      className={`${stacked ? 'hidden' : 'hidden sm:block'} bg-[var(--cs-canvas)] w-full shrink-0 overflow-visible ${className ?? ''}`}
     >
       {/* ──────────────── DESKTOP (sm+) — mobile split into MobileTopBar /
           MobileBottomBar, rendered by the parent around the strip. ────── */}
@@ -276,7 +281,7 @@ type MobileTopProps = Pick<
   | 'controlsState' | 'algorithm' | 'rating' | 'contrastValue' | 'thresholds'
   | 'activeThreshold' | 'onThresholdSelect' | 'onResultsToggle'
   | 'onAlgorithmToggle' | 'onExportToggle' | 'exportFeedback'
-  | 'onCopyUrl' | 'onCopyParams' | 'onDownloadMd'
+  | 'onCopyUrl' | 'onCopyParams' | 'onDownloadMd' | 'stacked'
 >;
 
 export function MobileTopBar({
@@ -294,6 +299,7 @@ export function MobileTopBar({
   onCopyUrl,
   onCopyParams,
   onDownloadMd,
+  stacked = false,
 }: MobileTopProps) {
   const copyUrlLabel = exportFeedback === 'url' ? 'COPIED URL' : 'COPY URL';
   const copyParamsLabel = exportFeedback === 'params' ? 'COPIED PARAMS' : 'COPY PARAMETERS';
@@ -316,7 +322,7 @@ export function MobileTopBar({
   }, [algorithm, thresholds]);
 
   return (
-    <div className="flex sm:hidden flex-col w-full shrink-0 bg-[var(--cs-canvas)] p-4 [&_*]:text-[14px]">
+    <div className={`${stacked ? 'flex' : 'flex sm:hidden'} flex-col w-full shrink-0 bg-[var(--cs-canvas)] p-4 [&_*]:text-[14px]`}>
       {/* Score (left) + Export/toggle (right) */}
       <div className="flex items-center justify-between w-full">
         <YPanel open={controlsState !== 'export'}>
@@ -374,7 +380,7 @@ type MobileBottomProps = Pick<
   | 'slidersExpanded' | 'controlsState' | 'sliderMode' | 'sliders'
   | 'onSliderChange' | 'onSliderModeChange' | 'onSliderDragStart' | 'onSliderDragEnd'
   | 'fgHex' | 'bgHex' | 'fgState' | 'bgState' | 'onFgClick' | 'onBgClick'
-  | 'onSwap' | 'swapSelected'
+  | 'onSwap' | 'swapSelected' | 'stacked'
 >;
 
 export function MobileBottomBar({
@@ -394,11 +400,12 @@ export function MobileBottomBar({
   onBgClick,
   onSwap,
   swapSelected,
+  stacked = false,
 }: MobileBottomProps) {
   const mobileSlidersOpen = slidersExpanded && controlsState === 'default';
   return (
     <div
-      className="flex sm:hidden flex-col w-full shrink-0 bg-[var(--cs-canvas)] p-4 [&_*]:text-[14px]"
+      className={`${stacked ? 'flex' : 'flex sm:hidden'} flex-col w-full shrink-0 bg-[var(--cs-canvas)] p-4 [&_*]:text-[14px]`}
       style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
     >
       {/* Sliders expand ABOVE the swatch row (pushing the strip up). */}

@@ -868,6 +868,7 @@ export function ColorShift() {
       {/* MOBILE top bar — score / export (sandwiches the strip; sm:hidden). */}
       {!displayMode && (
         <MobileTopBar
+          stacked={stackedLayout}
           controlsState={controlsState}
           algorithm={algorithmLabel}
           rating={contrast.grade}
@@ -914,6 +915,7 @@ export function ColorShift() {
       {/* MOBILE bottom bar — fg / swap / bg (sm:hidden). */}
       {!displayMode && (
         <MobileBottomBar
+          stacked={stackedLayout}
           slidersExpanded={slidersExpanded}
           controlsState={controlsState}
           sliderMode={sliderMode}
@@ -936,6 +938,7 @@ export function ColorShift() {
       {/* DESKTOP dock — hidden on mobile; the locked display hides it too. */}
       {!displayMode && (
       <ControlContainer
+        stacked={stackedLayout}
         slidersExpanded={slidersExpanded}
         sliderMode={sliderMode}
         sliders={sliderConfigs}
