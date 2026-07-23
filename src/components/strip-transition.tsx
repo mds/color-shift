@@ -37,6 +37,9 @@ interface StripTransitionProps {
   embedded?: boolean;
   /* Locked showcase: no editing, swapping, dragging, or nav arrows. */
   displayMode?: boolean;
+  /* Pin the vertical color-over-photo card (the small-viewport arrangement)
+     at every width, instead of switching to side-by-side at sm. */
+  stacked?: boolean;
   onPhotoAdvance?: () => void;
   onPhotoPrevious?: () => void;
 }
@@ -49,7 +52,7 @@ export interface StripHandle {
 }
 
 export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
-  ({ photo, prevPhoto, nextPhoto, bgHex, fgHex, prevBgHex, nextBgHex, prevFgHex, nextFgHex, specimenText, onSpecimenTextChange, fontSizePx, onSwap, onPhotoFileSelected, embedded = false, displayMode = false, onPhotoAdvance, onPhotoPrevious }, ref) => {
+  ({ photo, prevPhoto, nextPhoto, bgHex, fgHex, prevBgHex, nextBgHex, prevFgHex, nextFgHex, specimenText, onSpecimenTextChange, fontSizePx, onSwap, onPhotoFileSelected, embedded = false, displayMode = false, stacked = false, onPhotoAdvance, onPhotoPrevious }, ref) => {
 
     const colorRef = useRef<HTMLDivElement>(null);
     const textRef = useRef<HTMLSpanElement>(null);
@@ -324,9 +327,14 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
       suppressClickRef.current = false;
     }, []);
 
+    // Stacked pins the small-viewport arrangement (color over photo) at every
+    // width; otherwise the sm breakpoint switches to side-by-side as before.
+    const flowClass = stacked ? 'flex-col' : 'flex-col sm:flex-row';
+    const panelSizeClass = stacked ? 'w-full h-1/2' : 'w-full h-1/2 sm:w-1/2 sm:h-full';
+
     return (
       <div
-        className="group/strip relative w-full h-full overflow-hidden flex flex-col sm:flex-row select-none"
+        className={`group/strip relative w-full h-full overflow-hidden flex ${flowClass} select-none`}
         style={{ touchAction: 'pan-y' }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -340,7 +348,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
             The text scales on a panel press (group-active). */}
         <div
           ref={colorRef}
-          className={`w-full h-1/2 sm:w-1/2 sm:h-full flex items-center justify-center relative z-10 ${displayMode ? '' : 'cursor-pointer'}`}
+          className={`${panelSizeClass} flex items-center justify-center relative z-10 ${displayMode ? '' : 'cursor-pointer'}`}
           style={{ containerType: 'size' }}
           onClick={() => { if (!displayMode) onSwap?.(); }}
           onPointerDown={() => { if (!displayMode) setPanelPressed(true); }}
@@ -376,7 +384,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
             drag scrubs the filmstrip. Standalone also accepts image files via
             drag-and-drop for a custom photo. */}
         <div
-          className="group/photo w-full h-1/2 sm:w-1/2 sm:h-full relative overflow-hidden cursor-pointer"
+          className={`group/photo ${panelSizeClass} relative overflow-hidden cursor-pointer`}
           onClick={() => tapNeighbor('next')}
           onContextMenu={(e) => {
             // Custom menu for Unsplash photos only; uploads keep the native
@@ -532,13 +540,13 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
             navigation, not the panel underneath. Hidden in the locked showcase. */}
         {!displayMode && (
         <div
-          className={`pointer-events-none absolute inset-0 z-30 transition-opacity duration-150 ${isDraggingOver ? 'opacity-0' : 'opacity-100 sm:opacity-0 sm:group-hover/strip:opacity-100'}`}
+          className={`pointer-events-none absolute inset-0 z-30 transition-opacity duration-150 ${isDraggingOver ? 'opacity-0' : stacked ? 'opacity-100' : 'opacity-100 sm:opacity-0 sm:group-hover/strip:opacity-100'}`}
         >
           <button
             type="button"
             aria-label="Previous photo"
             onClick={(e) => { e.stopPropagation(); tapNeighbor('prev'); }}
-            className="pointer-events-auto absolute left-4 sm:left-[calc(50%+1rem)] top-[calc(50%+1rem)] translate-y-0 sm:top-1/2 sm:-translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-[4px] bg-[var(--cs-canvas)] text-white/90"
+            className={`pointer-events-auto absolute top-[calc(50%+1rem)] translate-y-0 ${stacked ? 'left-4' : 'left-4 sm:left-[calc(50%+1rem)] sm:top-1/2 sm:-translate-y-1/2'} flex h-10 w-10 items-center justify-center rounded-[4px] bg-[var(--cs-canvas)] text-white/90`}
           >
             <LeftArrowIcon className="h-5 w-5" />
           </button>
@@ -546,7 +554,7 @@ export const StripTransition = forwardRef<StripHandle, StripTransitionProps>(
             type="button"
             aria-label="Next photo"
             onClick={(e) => { e.stopPropagation(); tapNeighbor('next'); }}
-            className="pointer-events-auto absolute right-4 top-[calc(50%+1rem)] translate-y-0 sm:top-1/2 sm:-translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-[4px] bg-[var(--cs-canvas)] text-white/90"
+            className={`pointer-events-auto absolute right-4 top-[calc(50%+1rem)] translate-y-0 ${stacked ? '' : 'sm:top-1/2 sm:-translate-y-1/2'} flex h-10 w-10 items-center justify-center rounded-[4px] bg-[var(--cs-canvas)] text-white/90`}
           >
             <RightArrowIcon className="h-5 w-5" />
           </button>

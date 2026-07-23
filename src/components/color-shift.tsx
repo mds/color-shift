@@ -169,6 +169,9 @@ export function ColorShift() {
   const [specimenText, setSpecimenText] = useState('Aa');
   // Fixed specimen font-size in px from ?size=NN (embed param); null = auto-fit.
   const [fixedFontSize, setFixedFontSize] = useState<number | null>(null);
+  // Stacked card from ?layout=stacked (embed param): pins the color/photo
+  // card to the vertical mobile arrangement at every viewport width.
+  const [stackedLayout, setStackedLayout] = useState(false);
 
   // ── Photo state ──
   const [photoBuffer, setPhotoBuffer] = useState<PhotoData[]>([]);
@@ -581,8 +584,10 @@ export function ColorShift() {
     if (specimenText && specimenText !== 'Aa') params.set('text', specimenText);
     // Carry a fixed embed font size so shared links keep the pinned size.
     if (fixedFontSize && fixedFontSize > 0) params.set('size', String(fixedFontSize));
+    // Carry the stacked embed layout so shared links keep the arrangement.
+    if (stackedLayout) params.set('layout', 'stacked');
     return params;
-  }, [bg.hex, fg.hex, contrastAlgorithm, photoData, specimenText, lighterAsBg, fixedFontSize]);
+  }, [bg.hex, fg.hex, contrastAlgorithm, photoData, specimenText, lighterAsBg, fixedFontSize, stackedLayout]);
 
   const getShareUrl = useCallback(() => {
     const params = buildShareParams();
@@ -730,6 +735,12 @@ export function ColorShift() {
   const [displayMode, setDisplayMode] = useState(false);
   useEffect(() => {
     setDisplayMode(new URLSearchParams(window.location.search).get('display') === '1');
+  }, []);
+
+  // ── Stacked layout (?layout=stacked) — read once on mount, same as
+  // display mode. ──
+  useEffect(() => {
+    setStackedLayout(new URLSearchParams(window.location.search).get('layout') === 'stacked');
   }, []);
 
   // ── Keyboard — use ref for index so handler always reads latest ──
@@ -894,6 +905,7 @@ export function ColorShift() {
           onPhotoFileSelected={injectPhotoFromFile}
           embedded={embedded}
           displayMode={displayMode}
+          stacked={stackedLayout}
           onPhotoAdvance={() => navigateTo(photoIndex + 1)}
           onPhotoPrevious={() => navigateTo(photoIndex - 1)}
         />
