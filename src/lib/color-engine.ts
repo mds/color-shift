@@ -322,61 +322,112 @@ export function nearestThreshold(score: number, algorithm: ContrastAlgorithm = '
   return nearest;
 }
 
+// Up takes the first threshold the score has not reached, so a failing 4.47
+// goes to 4.5, not 7. Down skips any threshold the color already sits on:
+// bumpToThreshold lands at or just above a threshold, up to ~0.1 (WCAG) or
+// ~1 Lc (APCA) over when no closer hex exists, and a press must move past it.
 export function nextThresholdUp(score: number, algorithm: ContrastAlgorithm = 'WCAG2'): number | null {
-  const margin = algorithm === 'APCA' ? 1 : 0.05;
-  return getThresholds(algorithm).find(t => t > score + margin) ?? null;
+  return getThresholds(algorithm).find(t => t > score) ?? null;
 }
 
 export function nextThresholdDown(score: number, algorithm: ContrastAlgorithm = 'WCAG2'): number | null {
-  const margin = algorithm === 'APCA' ? 1 : 0.05;
+  const margin = algorithm === 'APCA' ? 1 : 0.1;
   return [...getThresholds(algorithm)].reverse().find(t => t < score - margin) ?? null;
 }
 
+/**
+ * Unrounded score for the bump search. WCAG 2 does not round, so 4.497:1
+ * misses a 4.5 floor even though the display shows "4.50:1".
+ */
+function exactScore(bgHex: string, fgHex: string, algorithm: ContrastAlgorithm): number {
+  if (algorithm === 'APCA') {
+    return Math.abs(Number(APCAcontrast(sRGBtoY(hexToRgbArray(fgHex)), sRGBtoY(hexToRgbArray(bgHex)))));
+  }
+  const l1 = relativeLuminance(bgHex);
+  const l2 = relativeLuminance(fgHex);
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+
+/**
+ * Move `fgHex` along OKLCH lightness to the color that just meets
+ * `targetScore` against `bgHex`: at or above the target, as close to it as a
+ * hex allows. Works both ways, so the up and down arrows land on a threshold
+ * instead of a hair under it (the old search accepted anything within 0.05,
+ * so a bump to 4.5 could stop at 4.47 and still read as a fail).
+ *
+ * Raising contrast tries, in order: keep hue and chroma and move away from
+ * the background, drop to neutral (saturated colors clip at the extremes),
+ * then the same two on the other side of a mid-tone background. Only a target
+ * no lightness can reach falls back to the highest-scoring color.
+ */
 export function bumpToThreshold(
   bgHex: string, fgHex: string, targetScore: number, algorithm: ContrastAlgorithm = 'WCAG2'
 ): string {
   const fgParsed = parse(fgHex);
   if (!fgParsed) return fgHex;
-
   const fgOklch = toOklch(fgParsed);
   if (!fgOklch) return fgHex;
 
-  const fgLum = relativeLuminance(fgHex);
-  const bgLum = relativeLuminance(bgHex);
-  const fgIsLighter = fgLum >= bgLum;
+  const startL = fgOklch.l ?? 0;
+  const hue = fgOklch.h ?? 0;
+  const chroma = fgOklch.c ?? 0;
+  const away = relativeLuminance(fgHex) >= relativeLuminance(bgHex) ? 1 : 0;
+  const STEPS = 50;
 
-  const tolerance = algorithm === 'APCA' ? 1.0 : 0.05;
+  const colorAt = (l: number, c: number) => formatHex({ mode: 'oklch' as const, l, c, h: hue }) ?? null;
+  const passes = (hex: string | null) => hex !== null && exactScore(bgHex, hex, algorithm) >= targetScore;
 
-  let lo = 0;
-  let hi = 1;
-  let bestHex = fgHex;
-  let bestDiff = Infinity;
-
-  for (let i = 0; i < 50; i++) {
-    const mid = (lo + hi) / 2;
-    const testHex = formatHex({
-      mode: 'oklch' as const,
-      l: mid,
-      c: fgOklch.c ?? 0,
-      h: fgOklch.h ?? 0,
-    });
-    if (!testHex) {
-      if (fgIsLighter) hi = mid; else lo = mid;
-      continue;
+  // Narrow the boundary between a passing and a failing lightness; returns
+  // the passing side, so every result is verified.
+  const refine = (passL: number, passHex: string, failL: number, c: number) => {
+    for (let j = 0; j < 24; j++) {
+      const mid = (passL + failL) / 2;
+      const midHex = colorAt(mid, c);
+      if (passes(midHex)) { passL = mid; passHex = midHex as string; } else { failL = mid; }
     }
+    return passHex;
+  };
 
-    const score = contrastRatio(bgHex, testHex, algorithm);
-    const diff = Math.abs(score - targetScore);
-    if (diff < bestDiff) { bestDiff = diff; bestHex = testHex; }
-    if (diff < tolerance) break;
-
-    if (fgIsLighter) {
-      if (score < targetScore) lo = mid; else hi = mid;
-    } else {
-      if (score < targetScore) hi = mid; else lo = mid;
+  // Lowering contrast: walk toward the background and stop at the last
+  // lightness that still meets the target.
+  if (passes(fgHex)) {
+    let passL = startL;
+    let passHex = fgHex;
+    for (let i = 1; i <= STEPS; i++) {
+      const l = startL + ((1 - away - startL) * i) / STEPS;
+      const hex = colorAt(l, chroma);
+      if (!passes(hex)) return refine(passL, passHex, l, chroma);
+      passL = l;
+      passHex = hex as string;
     }
+    return passHex;
   }
-  return bestHex;
+
+  // Raising contrast: first passing step from the original, then refine.
+  let maxHex = fgHex;
+  let maxScore = -Infinity;
+  const search = (end: number, c: number): string | null => {
+    let prev = startL;
+    for (let i = 1; i <= STEPS; i++) {
+      const l = startL + ((end - startL) * i) / STEPS;
+      const hex = colorAt(l, c);
+      if (hex) {
+        const score = exactScore(bgHex, hex, algorithm);
+        if (score > maxScore) { maxScore = score; maxHex = hex; }
+        if (score >= targetScore) return refine(l, hex, prev, c);
+      }
+      prev = l;
+    }
+    return null;
+  };
+  const routes: Array<[end: number, c: number]> = chroma > 0
+    ? [[away, chroma], [away, 0], [1 - away, chroma], [1 - away, 0]]
+    : [[away, 0], [1 - away, 0]];
+  for (const [end, c] of routes) {
+    const hit = search(end, c);
+    if (hit) return hit;
+  }
+  return maxHex;
 }
 
 // ── Format Display ─────────────────────────────────────────────────────
